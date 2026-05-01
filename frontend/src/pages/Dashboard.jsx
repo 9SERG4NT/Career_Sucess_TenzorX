@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import {
   Users, TrendingUp, AlertTriangle, Activity, Zap,
-  MapPin, BookOpen, Search, RefreshCw, ChevronRight
+  MapPin, BookOpen, Search, RefreshCw, ChevronRight, Brain
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
@@ -176,11 +176,12 @@ function Dashboard() {
       <AlertBanner />
 
       {/* KPI Row */}
-      <div className="grid-4" style={{ marginBottom: '1.5rem' }}>
+      <div className="grid-5" style={{ marginBottom: '1.5rem' }}>
         <StatCard icon={Users} title="Total Portfolio" value={summary.total_students?.toLocaleString()} sub="+2.4% vs last month" accentColor="var(--accent-primary)" />
         <StatCard icon={AlertTriangle} title="High Risk" value={summary.risk_distribution.HIGH?.toLocaleString()} sub="Requires immediate action" accentColor="var(--risk-high)" />
         <StatCard icon={Activity} title="6M Velocity" value={`${summary.placement_velocity?.['6m']}%`} sub="Avg placement probability" accentColor="var(--risk-medium)" />
         <StatCard icon={TrendingUp} title="Avg CGPA" value={summary.avg_cgpa} sub={`Avg EMI: ₹${summary.avg_emi?.toLocaleString()}`} accentColor="var(--risk-low)" />
+        <StatCard icon={Brain} title="AI Agents" value="5 Active" sub="NBA · Explainability · Market · Career · Offer" accentColor="var(--accent-purple)" />
       </div>
 
       {/* Charts Row */}

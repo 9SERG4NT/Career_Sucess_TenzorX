@@ -4,7 +4,7 @@ import axios from 'axios';
 import {
   ArrowLeft, User, Shield, Briefcase, Zap,
   CheckCircle2, AlertOctagon, Target, TrendingUp,
-  Clock, ChevronRight, Activity, Play, Map, Building2
+  Clock, ChevronRight, Activity, Play, Map, Building2, Info, Brain
 } from 'lucide-react';
 import { API_BASE } from '../App';
 
@@ -442,7 +442,10 @@ function CareerPathsTab({ studentId }) {
 
   return (
     <div className="card">
-      <div className="card-title"><Map size={14} /> Alternate Career Path Engine ⭐ — §10.4</div>
+      <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Map size={14} /> Alternate Career Path Engine — §10.4</div>
+        <span className="agentic-badge">Agentic AI</span>
+      </div>
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Primary field: <strong>{data.primary_field}</strong></span>
         <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Field demand: <strong style={{ color: data.primary_field_demand_score < 40 ? 'var(--risk-high)' : 'var(--risk-medium)' }}>{data.primary_field_demand_score}/100</strong></span>
