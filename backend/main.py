@@ -6,6 +6,18 @@ from scoring_engine import ScoringEngine
 import pandas as pd
 import numpy as np
 import random
+import sys, os
+
+# Add agents directory to sys.path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "agents"))
+
+from agents.orchestrator import (
+    score_student_full,
+    score_student_fast,
+    get_career_paths,
+    get_shock_report,
+    get_offer_survival,
+)
 
 app = FastAPI(
     title="PlacementIQ v2.0 API",
@@ -74,13 +86,81 @@ class InterventionRequest(BaseModel):
 # ─── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.post("/api/v1/score/student")
-async def score_student(data: StudentData):
-    """Score a single student and return risk analysis."""
+async def score_student_endpoint(request: StudentData):
+    """
+    Full agentic scoring: ML model + NBA agent + Explainability agent.
+    Use this for individual student risk cards in the dashboard.
+    """
+    result = score_student_full(request.model_dump())
+    return sanitize(result)
+
+
+@app.post("/api/v1/score/student/fast")
+async def score_student_fast_endpoint(request: StudentData):
+    """
+    ML-only scoring without agents. Use for bulk operations or latency-sensitive contexts.
+    """
+    result = score_student_fast(request.model_dump())
+    return sanitize(result)
+
+
+@app.get("/api/v1/student/{student_id}/career-paths")
+async def career_paths_endpoint(student_id: str):
+    """Alternate Career Path Engine — agent-driven."""
+    # Fetch student data from your DB/CSV
+    student_context = _fetch_student_context(student_id)
+    result = get_career_paths(student_id, student_context)
+    return sanitize(result)
+
+
+@app.get("/api/v1/student/{student_id}/offer-survival")
+async def offer_survival_endpoint(student_id: str, company: str):
+    """Offer Survival Score — agent-driven company health assessment."""
+    result = get_offer_survival(student_id, company)
+    return sanitize(result)
+
+
+@app.get("/api/v1/shocks/active")
+async def active_shocks_endpoint():
+    """
+    Placement Shock Detector — agent-driven severity assessment.
+    Scans all field+region combinations from the active student portfolio.
+    """
+    # Build list of unique field+region pairs from your student data
+    field_region_pairs = _get_portfolio_segments()
+    shocks = get_shock_report(field_region_pairs)
+    return sanitize({"active_shocks": shocks, "total_segments_scanned": len(field_region_pairs)})
+
+
+# ── Helper functions (add to main.py) ────────────────────────────────────────
+
+def _fetch_student_context(student_id: str) -> dict:
+    """Fetch student data from CSV. Replace with DB query in production."""
+    import pandas as pd
     try:
-        result = engine.score_student(data.model_dump())
-        return sanitize(result)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        df = pd.read_csv("data/synthetic_students.csv")
+        row = df[df["student_id"] == student_id].iloc[0]
+        return row.to_dict()
+    except Exception:
+        return {"student_id": student_id, "course_type": "Engineering",
+                "region": "Pune", "field": "Software Engineering"}
+
+
+def _get_portfolio_segments() -> list:
+    """Get unique field+region pairs from active student portfolio."""
+    import pandas as pd
+    try:
+        df = pd.read_csv("data/synthetic_students.csv")
+        pairs = df[["course_type", "region"]].drop_duplicates()
+        return [
+            {"field": row["course_type"], "region": row["region"]}
+            for _, row in pairs.iterrows()
+        ]
+    except Exception:
+        return [
+            {"field": "Software Engineering", "region": "Pune"},
+            {"field": "MBA-Finance", "region": "Mumbai"},
+        ]
 
 
 @app.get("/api/v1/students")

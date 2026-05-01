@@ -138,7 +138,7 @@ def generate_student_data(num_records=10000):
     print(f"Placed 6m: {df['placed_6m'].mean():.1%}")
     print(f"Placed 12m: {df['placed_12m'].mean():.1%}")
     placed_df = df[df['actual_salary'] > 0]
-    print(f"Avg Salary (placed): ₹{placed_df['actual_salary'].mean():,.0f}")
+    print(f"Avg Salary (placed): Rs.{placed_df['actual_salary'].mean():,.0f}")
     
     return df
 

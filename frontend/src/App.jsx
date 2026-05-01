@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, BarChart3, BookOpen, LogOut, Building2, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, BarChart3, BookOpen, LogOut, Building2, Settings, Brain } from 'lucide-react';
 import './App.css';
 import Dashboard from './pages/Dashboard';
 import StudentProfile from './pages/StudentProfile';
@@ -8,6 +8,7 @@ import Heatmap from './pages/Heatmap';
 import Reports from './pages/Reports';
 import Admin from './pages/Admin';
 import Institutes from './pages/Institutes';
+import AgenticInsights from './pages/AgenticInsights';
 
 const API_BASE = 'http://localhost:8001';
 export { API_BASE };
@@ -19,6 +20,7 @@ function Sidebar() {
     { path: '/heatmap', icon: BarChart3, label: 'Heatmap ⭐' },
     { path: '/reports', icon: BookOpen, label: 'Reports & Drift' },
     { path: '/institutes', icon: Building2, label: 'Institutes ⭐' },
+    { path: '/agentic', icon: Brain, label: 'AI Agents 🤖' },
     { path: '/admin', icon: Settings, label: 'Admin Panel (F-12)' },
   ];
 
@@ -75,6 +77,7 @@ function App() {
             <Route path="/heatmap" element={<Heatmap />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/institutes" element={<Institutes />} />
+            <Route path="/agentic" element={<AgenticInsights />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="*" element={<Dashboard />} />
           </Routes>
