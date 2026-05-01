@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
-import { LayoutDashboard, Users, BarChart3, BookOpen, LogOut, Building2, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, BarChart3, BookOpen, LogOut, Building2, Settings, Sun, Moon } from 'lucide-react';
 import './App.css';
 import Dashboard from './pages/Dashboard';
 import StudentProfile from './pages/StudentProfile';
@@ -8,11 +8,13 @@ import Heatmap from './pages/Heatmap';
 import Reports from './pages/Reports';
 import Admin from './pages/Admin';
 import Institutes from './pages/Institutes';
+import { useTheme } from './context/ThemeContext';
 
 const API_BASE = 'http://localhost:8001';
 export { API_BASE };
 
 function Sidebar() {
+  const { theme, toggleTheme } = useTheme();
   const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/students', icon: Users, label: 'Portfolio' },
@@ -25,9 +27,28 @@ function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">PIQ</div>
+        <div className="sidebar-logo-icon floating">PIQ</div>
         <h2 className="text-gradient">PlacementIQ</h2>
       </div>
+
+      <div className="theme-toggle-container" style={{ padding: '0 0.5rem 1.5rem 0.5rem' }}>
+        <button 
+          onClick={toggleTheme}
+          className="btn btn-ghost" 
+          style={{ 
+            width: '100%', 
+            justifyContent: 'flex-start', 
+            gap: '10px',
+            background: 'var(--bg-input)',
+            border: '1px solid var(--border-color)',
+            boxShadow: 'var(--shadow)'
+          }}
+        >
+          {theme === 'dark' ? <Sun size={17} color="#F59E0B" /> : <Moon size={17} color="#3B82F6" />}
+          <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+        </button>
+      </div>
+
 
       <span className="sidebar-section-label">Navigation</span>
 
@@ -62,12 +83,17 @@ function Sidebar() {
   );
 }
 
+
+import Background3D from './components/Background3D';
+
 function App() {
   return (
     <BrowserRouter>
       <div className="app-container">
+        <Background3D />
         <Sidebar />
         <main className="main-content">
+
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/students" element={<Dashboard />} />

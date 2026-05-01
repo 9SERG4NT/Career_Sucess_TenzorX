@@ -16,7 +16,7 @@ const RISK_ORDER = ['HIGH', 'MEDIUM', 'LOW'];
 
 function StatCard({ icon: Icon, title, value, sub, accentColor }) {
   return (
-    <div className="card animate-fade-up" style={{ borderTop: `2px solid ${accentColor || 'transparent'}` }}>
+    <div className="card animate-fade-up interactive-3d-card" style={{ borderTop: `2px solid ${accentColor || 'transparent'}` }}>
       <div className="card-title">
         <Icon size={15} />
         {title}
@@ -26,6 +26,7 @@ function StatCard({ icon: Icon, title, value, sub, accentColor }) {
     </div>
   );
 }
+
 
 function PlacementVelocityBar({ label, value, color }) {
   return (
@@ -176,7 +177,7 @@ function Dashboard() {
       <AlertBanner />
 
       {/* KPI Row */}
-      <div className="grid-4" style={{ marginBottom: '1.5rem' }}>
+      <div className="grid-4 perspective-container" style={{ marginBottom: '1.5rem' }}>
         <StatCard icon={Users} title="Total Portfolio" value={summary.total_students?.toLocaleString()} sub="+2.4% vs last month" accentColor="var(--accent-primary)" />
         <StatCard icon={AlertTriangle} title="High Risk" value={summary.risk_distribution.HIGH?.toLocaleString()} sub="Requires immediate action" accentColor="var(--risk-high)" />
         <StatCard icon={Activity} title="6M Velocity" value={`${summary.placement_velocity?.['6m']}%`} sub="Avg placement probability" accentColor="var(--risk-medium)" />

@@ -251,15 +251,15 @@ function StudentProfile() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid-4" style={{ marginBottom: '1.75rem' }}>
-        <div className="card card-sm" style={{ borderTop: `2px solid ${riskColor}` }}>
+      <div className="grid-4 perspective-container" style={{ marginBottom: '1.75rem' }}>
+        <div className="card card-sm interactive-3d-card" style={{ borderTop: `2px solid ${riskColor}` }}>
           <div className="card-title"><Zap size={13} /> 6M Probability</div>
           <div className="stat-value" style={{ color: riskColor }}>{Math.round(pred.placement_probability['6m'] * 100)}%</div>
           <div className="progress-bar-track" style={{ marginTop: '0.5rem' }}>
             <div className="progress-bar-fill" style={{ width: `${Math.round(pred.placement_probability['6m'] * 100)}%`, background: riskColor }} />
           </div>
         </div>
-        <div className="card card-sm">
+        <div className="card card-sm interactive-3d-card">
           <div className="card-title"><Briefcase size={13} /> Salary Estimate</div>
           <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>₹{pred.salary_estimate?.median?.toLocaleString() || pred.expected_salary?.toLocaleString()}</div>
           {pred.salary_estimate && (
@@ -270,14 +270,14 @@ function StudentProfile() {
             </div>
           )}
         </div>
-        <div className="card card-sm" style={{ borderTop: `2px solid ${insights.emi_comfort_index < 1.2 ? 'var(--risk-high)' : insights.emi_comfort_index < 2 ? 'var(--risk-medium)' : 'var(--risk-low)'}` }}>
+        <div className="card card-sm interactive-3d-card" style={{ borderTop: `2px solid ${insights.emi_comfort_index < 1.2 ? 'var(--risk-high)' : insights.emi_comfort_index < 2 ? 'var(--risk-medium)' : 'var(--risk-low)'}` }}>
           <div className="card-title"><Shield size={13} /> EMI Comfort Index</div>
           <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>
             {insights.emi_comfort_index === 99 ? '∞' : `${insights.emi_comfort_index}x`}
           </div>
           <div className="stat-sub">Salary / EMI ratio (target: &gt;2.0x)</div>
         </div>
-        <div className="card card-sm">
+        <div className="card card-sm interactive-3d-card">
           <div className="card-title"><Target size={13} /> Peer Percentile</div>
           <div style={{ fontSize: '1.5rem', fontWeight: 700 }}>{peer?.student_percentile || '—'}%</div>
           <div className="stat-sub">{peer?.percentile_label || '—'}</div>
@@ -285,7 +285,8 @@ function StudentProfile() {
       </div>
 
       {/* Tri-horizon probability */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
+      <div className="card interactive-3d-card" style={{ marginBottom: '1.5rem' }}>
+
         <div className="card-title"><Clock size={14} /> Placement Timeline Prediction</div>
         <div style={{ display: 'flex', gap: '2rem', paddingTop: '0.5rem' }}>
           <ProbabilityHorizon label="3 Months" value={pred.placement_probability['3m']} />
