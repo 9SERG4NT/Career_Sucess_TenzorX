@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+xgboost
+lightgbm
+scikit-learn
+pandas
+numpy
+shap
+faker
+pydantic

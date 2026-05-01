@@ -1,0 +1,6 @@
+/* Clear Vite default styles */
+#root {
+  max-width: unset;
+  padding: 0;
+  text-align: unset;
+}

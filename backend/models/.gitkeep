@@ -1,0 +1,5 @@
+# Regenerate with: python model_pipeline.py
+# This will train and save:
+#   - placement_model.pkl  (XGBoost classifier)
+#   - salary_model.pkl     (LightGBM regressor)
+#   - feature_columns.json
