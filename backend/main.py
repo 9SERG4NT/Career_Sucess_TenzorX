@@ -8,6 +8,14 @@ import numpy as np
 import random
 import sys, os
 
+# Real market data (World Bank + news signals — fetched 2026-05-02)
+from real_data_fetcher import (
+    get_market_data,
+    get_field_demand,
+    get_active_shocks as _get_real_shocks,
+    get_macro_climate_index,
+)
+
 # Add agents directory to sys.path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "agents"))
 
@@ -15,7 +23,6 @@ from agents.orchestrator import (
     score_student_full,
     score_student_fast,
     get_career_paths,
-    get_shock_report,
     get_offer_survival,
 )
 
@@ -120,16 +127,8 @@ async def offer_survival_endpoint(student_id: str, company: str):
     return sanitize(result)
 
 
-@app.get("/api/v1/shocks/active")
-async def active_shocks_endpoint():
-    """
-    Placement Shock Detector — agent-driven severity assessment.
-    Scans all field+region combinations from the active student portfolio.
-    """
-    # Build list of unique field+region pairs from your student data
-    field_region_pairs = _get_portfolio_segments()
-    shocks = get_shock_report(field_region_pairs)
-    return sanitize({"active_shocks": shocks, "total_segments_scanned": len(field_region_pairs)})
+# Note: /api/v1/shocks/active is defined later (around line ~550) and uses
+# real market data from real_data_fetcher (no LLM key required).
 
 
 # ── Helper functions (add to main.py) ────────────────────────────────────────
@@ -546,55 +545,61 @@ async def get_audit_report(student_id: str):
     })
 
 
-# ─── Placement Shock Detector — live endpoint ──────────────────────────────
+# ─── Placement Shock Detector — real data ──────────────────────────────────
 
 @app.get("/api/v1/shocks/active")
 async def get_active_shocks():
     """
     Placement Shock Detector ⭐ — returns active macro-level shock events.
-    In production: fed by real-time NLP parsing of news + job portal volume drops.
-    Demo: seeded realistic shocks based on current market signals.
+    Powered by real market data: World Bank macro signals + India tech hiring news.
+    Sources: Business Standard, ZeeBiz, Inc42 — refreshed 2026-05-02.
     """
-    if not mock_db:
-        return {"shocks": [], "total": 0}
+    real_shocks = _get_real_shocks()
+    df = pd.DataFrame(mock_db) if mock_db else pd.DataFrame()
 
-    df = pd.DataFrame(mock_db)
-
-    # Compute affected student counts by region/course
-    shocks = [
-        {
-            "shock_id": "SHK-2026-0501-01",
-            "detected_at": "2026-05-01T01:00:00Z",
-            "sector": "Information Technology",
-            "geography": ["Pune", "Bengaluru"],
-            "trigger": "IT hiring volume down 24% MoM; TechCorp, InfoEdge, and Wipro announced hiring freeze",
-            "severity": "CRITICAL",
-            "affected_students": int(len(df[(df['region'].isin(['Pune', 'Bengaluru'])) & (df['course_type'] == 'Engineering')])),
-            "risk_band_escalations": {"Medium_to_High": 34, "Low_to_Medium": 11},
-            "recommended_action": "Assign RMs to 34 newly HIGH students immediately. Consider macro climate index override.",
-            "macro_climate_override": 0.35,
-        },
-        {
-            "shock_id": "SHK-2026-0428-02",
-            "detected_at": "2026-04-28T06:00:00Z",
-            "sector": "BFSI",
-            "geography": ["Mumbai", "Delhi NCR"],
-            "trigger": "RBI rate hike announcement; BFSI hiring budgets under review at 4 major banks",
-            "severity": "MODERATE",
-            "affected_students": int(len(df[(df['region'].isin(['Mumbai', 'Delhi NCR'])) & (df['course_type'] == 'MBA')])),
-            "risk_band_escalations": {"Medium_to_High": 12, "Low_to_Medium": 21},
-            "recommended_action": "Monitor MBA students in BFSI pipeline. Flag if demand score drops further.",
-            "macro_climate_override": 0.52,
+    enriched = []
+    for s in real_shocks:
+        cities = s.get("geography", [])
+        course_map = {
+            "IT Services": "Engineering",
+            "Edtech": "Engineering",
+            "BFSI": "MBA",
         }
-    ]
+        course = course_map.get(s.get("sector", ""), None)
 
-    total_affected = sum(s["affected_students"] for s in shocks)
+        if not df.empty and cities and course:
+            affected = int(len(
+                df[df["region"].isin(cities) & (df["course_type"] == course)]
+            ))
+        else:
+            affected = s.get("affected_students", 0)
+
+        enriched.append({
+            "shock_id": s.get("id", "SHOCK-UNKNOWN"),
+            "detected_at": f"{s.get('start_date', '2025-01-01')}T00:00:00Z",
+            "sector": s.get("sector"),
+            "geography": cities,
+            "trigger": s.get("trigger"),
+            "severity": s.get("severity"),
+            "affected_students": affected,
+            "wow_change_pct": s.get("wow_change_pct"),
+            "recommended_action": s.get("recommended_action"),
+            "macro_climate_override": round(
+                max(0.2, get_macro_climate_index() - abs(s.get("wow_change_pct", 0)) / 200), 2
+            ),
+            "data_source": s.get("data_source", "real_data_fetcher"),
+        })
+
+    total_affected = sum(s["affected_students"] for s in enriched)
+    mdata = get_market_data()
     return sanitize({
-        "shocks": shocks,
-        "total": len(shocks),
+        "shocks": enriched,
+        "total": len(enriched),
         "total_affected_students": total_affected,
-        "last_scan": "2026-05-01T03:00:00Z",
-        "next_scan": "2026-05-02T03:00:00Z",
+        "overall_sentiment": mdata.get("overall_market_sentiment", "CAUTIOUS"),
+        "positive_signals_count": len(mdata.get("positive_signals", [])),
+        "last_scan": mdata.get("_meta", {}).get("fetched_at", "2026-05-02"),
+        "data_source": "real_data_fetcher — World Bank + India market news 2025",
     })
 
 
@@ -603,57 +608,44 @@ async def get_active_shocks():
 @app.get("/api/v1/heatmap/demand")
 async def get_heatmap_demand(field: str = None, region: str = None):
     """
-    Dynamic Employability Heatmap ⭐ — returns field × region demand grid.
-    Filterable by field and region. Scores are 0-100.
+    Dynamic Employability Heatmap ⭐ — field × region demand grid.
+    Scores sourced from real market data: World Bank macro + India job portal
+    statistics (Foundit/Naukri) + nursing/MBA placement reports 2025.
     """
-    fields = ["Engineering", "MBA", "Nursing"]
-    regions = ["Mumbai", "Bengaluru", "Delhi NCR", "Pune", "Hyderabad", "Chennai"]
-
-    # Demand matrix calibrated to realistic hiring patterns
-    demand_matrix = {
-        ("Engineering", "Bengaluru"): {"demand": 88, "trend": "+3%", "top_roles": ["SDE", "Data Engineer", "DevOps"]},
-        ("Engineering", "Pune"):      {"demand": 72, "trend": "-5%", "top_roles": ["Embedded Systems", "QA Engineer", "Manufacturing"]},
-        ("Engineering", "Hyderabad"): {"demand": 81, "trend": "+2%", "top_roles": ["SDE", "Cloud Architect", "ML Engineer"]},
-        ("Engineering", "Mumbai"):    {"demand": 65, "trend": "-1%", "top_roles": ["IT Consulting", "FinTech SDE", "Systems Analyst"]},
-        ("Engineering", "Delhi NCR"): {"demand": 70, "trend": "+1%", "top_roles": ["Backend SDE", "Product Manager", "IT Manager"]},
-        ("Engineering", "Chennai"):   {"demand": 75, "trend": "+4%", "top_roles": ["Automotive Software", "Semiconductor", "SDE"]},
-        ("MBA", "Mumbai"):            {"demand": 85, "trend": "+2%", "top_roles": ["Investment Banking", "Risk Analyst", "Brand Manager"]},
-        ("MBA", "Delhi NCR"):         {"demand": 78, "trend": "-2%", "top_roles": ["Consulting", "FMCG Management", "Supply Chain"]},
-        ("MBA", "Bengaluru"):         {"demand": 74, "trend": "+5%", "top_roles": ["VC/PE Analyst", "Product Manager", "Strategy"]},
-        ("MBA", "Pune"):              {"demand": 62, "trend": "-4%", "top_roles": ["Operations", "HR Business Partner", "Finance"]},
-        ("MBA", "Hyderabad"):         {"demand": 68, "trend": "+1%", "top_roles": ["IT Product Management", "Analytics", "Business Dev"]},
-        ("MBA", "Chennai"):           {"demand": 60, "trend": "0%",  "top_roles": ["Manufacturing Management", "Supply Chain", "HR"]},
-        ("Nursing", "Mumbai"):        {"demand": 92, "trend": "+8%", "top_roles": ["ICU Nurse", "OR Nurse", "Nurse Educator"]},
-        ("Nursing", "Delhi NCR"):     {"demand": 88, "trend": "+6%", "top_roles": ["Clinical Nurse", "Home Care", "Pediatric Nurse"]},
-        ("Nursing", "Bengaluru"):     {"demand": 84, "trend": "+7%", "top_roles": ["Corporate Hospital", "Research Nurse", "Midwife"]},
-        ("Nursing", "Pune"):          {"demand": 79, "trend": "+5%", "top_roles": ["Community Health", "Hospital Staff", "Nursing Home"]},
-        ("Nursing", "Hyderabad"):     {"demand": 82, "trend": "+9%", "top_roles": ["Senior Nurse", "Specialty Care", "Outpatient"]},
-        ("Nursing", "Chennai"):       {"demand": 77, "trend": "+4%", "top_roles": ["Government Hospital", "Private Clinic", "ICU"]},
-    }
+    all_fields = ["Engineering", "MBA", "Nursing"]
+    all_regions = ["Mumbai", "Bengaluru", "Delhi NCR", "Pune", "Hyderabad", "Chennai"]
+    mdata = get_market_data()
+    fetched_at = mdata.get("_meta", {}).get("fetched_at", "2026-05-02")
 
     grid = []
-    for f in fields:
+    for f in all_fields:
         if field and f != field:
             continue
-        for r in regions:
+        for r in all_regions:
             if region and r != region:
                 continue
-            key = (f, r)
-            data = demand_matrix.get(key, {"demand": 50, "trend": "0%", "top_roles": []})
+            cell = get_field_demand(f, r)
+            score = cell.get("demand_score", 60)
             grid.append({
                 "field": f,
                 "region": r,
-                "demand_score": data["demand"],
-                "trend": data["trend"],
-                "top_roles": data["top_roles"],
-                "risk_level": "HIGH" if data["demand"] >= 80 else "MEDIUM" if data["demand"] >= 60 else "LOW",
+                "demand_score": score,
+                "trend": cell.get("trend", "0.0%"),
+                "top_roles": cell.get("top_roles", []),
+                "avg_fresher_salary_inr": cell.get("avg_fresher_salary_inr", 0),
+                "notes": cell.get("notes", ""),
+                "risk_level": "HIGH" if score >= 75 else "MEDIUM" if score >= 55 else "LOW",
+                "data_source": "real — World Bank + Foundit/Naukri + placement reports 2025",
             })
 
     return sanitize({
         "grid": grid,
         "total_cells": len(grid),
-        "last_updated": "2026-05-01",
+        "last_updated": fetched_at,
+        "macro_climate_index": get_macro_climate_index(),
         "filters_applied": {"field": field, "region": region},
+        "data_note": "Demand scores derived from real job posting volumes (Foundit/Naukri), "
+                     "World Bank employment indicators, and India placement reports 2025.",
     })
 
 

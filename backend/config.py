@@ -16,7 +16,7 @@ load_dotenv()
 PROVIDER_REGISTRY = {
     "anthropic": {
         "base_url": None,                          # Uses Anthropic SDK directly
-        "default_model": "claude-sonnet-4-20250514",
+        "default_model": "claude-sonnet-4-6",
         "tool_format": "anthropic",
         "api_key_env": "ANTHROPIC_API_KEY",
     },
@@ -58,12 +58,13 @@ PROVIDER_CONFIG = PROVIDER_REGISTRY[ACTIVE_PROVIDER]
 # Allow model override from env
 MODEL = os.getenv("OVERRIDE_MODEL") or PROVIDER_CONFIG["default_model"]
 
-# Resolve API key
+# Resolve API key — optional at startup, required only for agentic endpoints
 API_KEY = os.getenv(PROVIDER_CONFIG["api_key_env"])
 if not API_KEY:
-    raise EnvironmentError(
-        f"Provider '{ACTIVE_PROVIDER}' requires env var "
-        f"'{PROVIDER_CONFIG['api_key_env']}' to be set."
+    print(
+        f"[PlacementIQ] WARNING: '{PROVIDER_CONFIG['api_key_env']}' not set. "
+        f"Non-agentic endpoints work normally. "
+        f"Agentic endpoints (/score/student, /career-paths, /offer-survival, /shocks) will fail until a key is provided."
     )
 
 # ── Business Constants ────────────────────────────────────────────────────────

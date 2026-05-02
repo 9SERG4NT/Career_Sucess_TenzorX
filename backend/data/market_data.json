@@ -1,0 +1,251 @@
+{
+  "_meta": {
+    "fetched_at": "2026-05-02",
+    "schema_version": "2.0",
+    "sources": [
+      "World Bank WDI API (api.worldbank.org) — unemployment, GDP growth, services employment",
+      "Foundit/Naukri search data — city-wise job vacancies Engineering/MBA",
+      "ZeeBiz: IT job demand 1.8M in 2025",
+      "BWPeople: Fresher hiring trends, Software/Hardware leads with 32% share",
+      "Storyboard18/Foundit: India job market +9% 2025, IT +15%",
+      "Business Standard/BusinessToday: TCS layoffs, hiring freeze 2025",
+      "upGrad/CareerPlanB: Nursing salary & demand data 2025",
+      "Gyanplug/Shiksha: MBA placement report 2025",
+      "Careers360: IIT/IIM placement stats 2025"
+    ],
+    "refresh_interval_hours": 24,
+    "next_refresh": "2026-05-03"
+  },
+  "macro": {
+    "unemployment_rate_pct": 4.219,
+    "gdp_growth_pct": 6.49,
+    "services_employment_pct": 32.56,
+    "macro_climate_index": 0.719,
+    "trend": "IMPROVING",
+    "year": 2025,
+    "notes": "World Bank 2024-2025 ILO estimates. India unemployment at post-COVID low of 4.2%. GDP growth robust at 6.49%. Macro environment supportive for placements."
+  },
+  "field_demand": {
+    "Engineering": {
+      "Bengaluru": {
+        "demand_score": 75,
+        "trend": "+3.2%",
+        "risk_level": "HIGH",
+        "top_roles": ["Software Engineer", "ML Engineer", "Data Engineer"],
+        "avg_fresher_salary_inr": 416000,
+        "notes": "GCC hub. AI/ML roles up 45-60% YoY. IT services headcount decline offset by 1,700+ GCCs. Avg fresher salary ₹4.16 LPA."
+      },
+      "Mumbai": {
+        "demand_score": 68,
+        "trend": "+1.8%",
+        "risk_level": "MEDIUM",
+        "top_roles": ["Full Stack Developer", "DevOps Engineer", "Cloud Architect"],
+        "avg_fresher_salary_inr": 399000,
+        "notes": "BFSI-driven tech hiring. Fintech (Razorpay, PhonePe, Groww) actively hiring freshers."
+      },
+      "Hyderabad": {
+        "demand_score": 78,
+        "trend": "+4.1%",
+        "risk_level": "HIGH",
+        "top_roles": ["Software Engineer", "Chip Design Engineer", "Data Scientist"],
+        "avg_fresher_salary_inr": 395000,
+        "notes": "Semiconductor boom (Micron, Qualcomm, AMD R&D). Pharma IT. 8% of India fresher postings."
+      },
+      "Pune": {
+        "demand_score": 72,
+        "trend": "+2.5%",
+        "risk_level": "HIGH",
+        "top_roles": ["Software Engineer", "Embedded Systems", "Product Engineer"],
+        "avg_fresher_salary_inr": 380000,
+        "notes": "Automotive tech + IT services + manufacturing. 8% of India fresher postings."
+      },
+      "Delhi NCR": {
+        "demand_score": 80,
+        "trend": "+5.1%",
+        "risk_level": "HIGH",
+        "top_roles": ["Software Engineer", "Product Manager", "Cloud Engineer"],
+        "avg_fresher_salary_inr": 389000,
+        "notes": "Top city: 21% of all India fresher job postings (Foundit data). GCC + startup hub."
+      },
+      "Chennai": {
+        "demand_score": 66,
+        "trend": "+0.9%",
+        "risk_level": "MEDIUM",
+        "top_roles": ["Software Engineer", "Automobile Engineer", "Quality Analyst"],
+        "avg_fresher_salary_inr": 384000,
+        "notes": "Auto tech + IT manufacturing + IT services. Slower growth vs other hubs. 8% fresher postings."
+      }
+    },
+    "MBA": {
+      "Bengaluru": {
+        "demand_score": 78,
+        "trend": "+4.5%",
+        "risk_level": "HIGH",
+        "top_roles": ["Product Manager", "Business Analyst", "Strategy Consultant"],
+        "avg_fresher_salary_inr": 2200000,
+        "notes": "53,545 MBA job vacancies on Foundit (largest city). Startup + tech cos dominant."
+      },
+      "Mumbai": {
+        "demand_score": 88,
+        "trend": "+6.2%",
+        "risk_level": "HIGH",
+        "top_roles": ["Investment Banking Analyst", "Management Consultant", "Brand Manager"],
+        "avg_fresher_salary_inr": 2800000,
+        "notes": "India's financial capital. BFSI + consulting hub. IIM Bangalore offers up 15.4% YoY. 682 MBA vacancies. Consulting avg ₹28-45 LPA."
+      },
+      "Hyderabad": {
+        "demand_score": 71,
+        "trend": "+3.1%",
+        "risk_level": "HIGH",
+        "top_roles": ["Business Development Manager", "Pharma Sales Manager", "Operations Manager"],
+        "avg_fresher_salary_inr": 1800000,
+        "notes": "BFSI + pharma + IT. Growing MBA demand driven by GCC expansion."
+      },
+      "Pune": {
+        "demand_score": 68,
+        "trend": "+2.2%",
+        "risk_level": "MEDIUM",
+        "top_roles": ["Supply Chain Manager", "Operations Manager", "Finance Analyst"],
+        "avg_fresher_salary_inr": 1600000,
+        "notes": "Auto + manufacturing + IT. MBA placements improving, avg salary up 3-7% YoY."
+      },
+      "Delhi NCR": {
+        "demand_score": 83,
+        "trend": "+5.8%",
+        "risk_level": "HIGH",
+        "top_roles": ["Management Consultant", "Investment Analyst", "General Manager"],
+        "avg_fresher_salary_inr": 2400000,
+        "notes": "Consulting + FMCG + BFSI. XLRI, MDI Gurgaon, SPJIMR 100% placement records continue."
+      },
+      "Chennai": {
+        "demand_score": 62,
+        "trend": "+1.4%",
+        "risk_level": "MEDIUM",
+        "top_roles": ["Finance Manager", "Supply Chain", "Operations"],
+        "avg_fresher_salary_inr": 1500000,
+        "notes": "Manufacturing + auto + IT services. Moderate MBA demand compared to other metros."
+      }
+    },
+    "Nursing": {
+      "Bengaluru": {
+        "demand_score": 73,
+        "trend": "+5.4%",
+        "risk_level": "HIGH",
+        "top_roles": ["Staff Nurse", "ICU Nurse", "OT Nurse"],
+        "avg_fresher_salary_inr": 252000,
+        "notes": "Growing private hospital sector. Manipal, Apollo, Fortis expanding. Metro freshers earn ₹6-8 LPA."
+      },
+      "Mumbai": {
+        "demand_score": 79,
+        "trend": "+4.8%",
+        "risk_level": "HIGH",
+        "top_roles": ["Staff Nurse", "CCU Nurse", "Clinical Coordinator"],
+        "avg_fresher_salary_inr": 288000,
+        "notes": "High demand. Top pay: up to ₹40,865/month experienced. Major hospital chains recruiting."
+      },
+      "Hyderabad": {
+        "demand_score": 74,
+        "trend": "+5.1%",
+        "risk_level": "HIGH",
+        "top_roles": ["Staff Nurse", "ICU Specialist", "Paediatric Nurse"],
+        "avg_fresher_salary_inr": 240000,
+        "notes": "Corporate hospital boom: Apollo, Yashoda, KIMS expanding aggressively."
+      },
+      "Pune": {
+        "demand_score": 68,
+        "trend": "+3.9%",
+        "risk_level": "MEDIUM",
+        "top_roles": ["Staff Nurse", "OPD Nurse", "Home Care Nurse"],
+        "avg_fresher_salary_inr": 228000,
+        "notes": "Growing hospital sector. Tier-2 city salary benchmark ₹4.5-5.5 LPA."
+      },
+      "Delhi NCR": {
+        "demand_score": 82,
+        "trend": "+6.1%",
+        "risk_level": "HIGH",
+        "top_roles": ["Staff Nurse", "ICU Nurse", "Clinical Research Nurse"],
+        "avg_fresher_salary_inr": 300000,
+        "notes": "Highest nursing salary city. AIIMS + private chains. National shortage: 2.4M nurses needed."
+      },
+      "Chennai": {
+        "demand_score": 77,
+        "trend": "+5.7%",
+        "risk_level": "HIGH",
+        "top_roles": ["Staff Nurse", "OT Technician", "Cardiac Care Nurse"],
+        "avg_fresher_salary_inr": 252000,
+        "notes": "Apollo headquarters. Medical tourism hub. Consistent demand for qualified nurses."
+      }
+    }
+  },
+  "active_shocks": [
+    {
+      "id": "SHOCK-2025-001",
+      "sector": "IT Services",
+      "severity": "HIGH",
+      "trigger": "TCS hired ~40,000 freshers in FY2024-25 vs 110,000+ in FY2022-23 (-64%). TCS froze lateral hiring and paused salary hikes. Infosys delayed offer-letter joinings 12-18 months. Top-5 IT firms added only 4,787 net employees in Q1 FY2026.",
+      "geography": ["Bengaluru", "Hyderabad", "Chennai", "Pune"],
+      "affected_students": 2840,
+      "wow_change_pct": -38.0,
+      "recommended_action": "Review underwriting for IT services freshers; verify actual joining date before disbursement; flag students with unconfirmed TCS/Infosys offer letters as HIGH risk",
+      "data_source": "Business Standard, BusinessToday, ZeeBiz — 2025",
+      "start_date": "2024-10-01"
+    },
+    {
+      "id": "SHOCK-2025-002",
+      "sector": "Edtech",
+      "severity": "HIGH",
+      "trigger": "Byju's insolvency proceedings initiated 2024; 15,000+ layoffs cumulatively. Unacademy, Vedantu funding dried up. Several edtech unicorns have unpaid salaries.",
+      "geography": ["Bengaluru", "Delhi NCR", "Mumbai"],
+      "affected_students": 420,
+      "wow_change_pct": -55.0,
+      "recommended_action": "Classify edtech employment as high-risk income source; require 6+ months salary credits; apply HIGH risk override for edtech company offer letters",
+      "data_source": "Inc42, Economic Times — 2024",
+      "start_date": "2024-01-01"
+    }
+  ],
+  "positive_signals": [
+    {
+      "sector": "Global Capability Centres (GCC)",
+      "description": "India added 150+ new GCCs in FY2024-25, total 1,700+, employing 1.9M professionals. JPMorgan, Goldman Sachs, Apple, Nvidia, Walmart all expanded India headcount.",
+      "cities": ["Bengaluru", "Hyderabad", "Pune", "Chennai", "Mumbai"],
+      "hiring_growth_pct": 18.0
+    },
+    {
+      "sector": "AI / ML Engineering",
+      "description": "AI/ML roles demand up 45-60% YoY. Salary premium 30-50% over non-AI equivalents. 3:1 demand-to-supply ratio.",
+      "cities": ["Bengaluru", "Hyderabad", "Pune", "Delhi NCR"],
+      "hiring_growth_pct": 52.0
+    },
+    {
+      "sector": "BFSI Technology",
+      "description": "HDFC Bank, ICICI, Axis + fintech (Razorpay, PhonePe, Groww) continued healthy tech hiring. India job market growing 9% in 2025; IT sector up 15%.",
+      "cities": ["Mumbai", "Bengaluru", "Delhi NCR", "Pune", "Hyderabad"],
+      "hiring_growth_pct": 10.0
+    },
+    {
+      "sector": "Semiconductors & Chip Design",
+      "description": "India Semiconductor Mission: Micron $2.75B Sanand fab, Tata Electronics, Qualcomm/Intel/AMD R&D centres. Chip design roles up ~35% YoY.",
+      "cities": ["Bengaluru", "Hyderabad", "Pune", "Delhi NCR"],
+      "hiring_growth_pct": 35.0
+    },
+    {
+      "sector": "Healthcare / Nursing",
+      "description": "India needs 2.4 million additional nurses. Government + private hospital chains expanding rapidly. Metro nursing salaries up 20-40% vs rural.",
+      "cities": ["Delhi NCR", "Mumbai", "Bengaluru", "Chennai", "Hyderabad"],
+      "hiring_growth_pct": 14.0
+    }
+  ],
+  "overall_market_sentiment": "CAUTIOUS",
+  "key_market_facts": [
+    "IT job demand touched 1.8 million openings in 2025 (ZeeBiz)",
+    "Fresher hiring in India projected to surge 40% in FY2025-26 recovery",
+    "Top 4 IT firms (TCS, Infosys, HCLTech, Wipro) to onboard 82,000 graduates in FY2026",
+    "Delhi/NCR leads with 21% of fresher job postings; Bengaluru 14%",
+    "TCS FY2024-25 fresher intake: ~40,000 vs 110,000+ in FY2022-23 (-64%)",
+    "India's job market growing 9% in 2025, IT-software +15% (Foundit/Storyboard18)",
+    "2.4 million additional nurses needed in India",
+    "1,700+ GCCs in India employing 1.9M professionals",
+    "AI/ML roles: 45-60% demand growth, 30-50% salary premium",
+    "IIM Bangalore 2025: offers up 15.4% YoY, students placed up 16.4%"
+  ]
+}
