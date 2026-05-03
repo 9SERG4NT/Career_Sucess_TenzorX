@@ -1,3 +1,10 @@
+<h1 align="center">PlacementIQ</h1>
+<h3 align="center">Agentic AI Career Risk Intelligence Platform</h3>
+
+<p align="center">
+  <em>A <strong>Poonawalla Fincorp</strong> initiative — AI-powered education-loan placement risk prediction for lenders,<br/>
+  built on a <strong>multi-agent architecture</strong> with real-time market intelligence.</em>
+</p>
 <p align="center">
   <img src="https://img.shields.io/badge/Poonawalla_Fincorp-PlacementIQ-1B2C5E?style=for-the-badge&labelColor=1E56C7&logoColor=white" alt="PlacementIQ" />
   <img src="https://img.shields.io/badge/version-2.0.0-1E56C7?style=for-the-badge" alt="Version" />
@@ -5,15 +12,6 @@
   <img src="https://img.shields.io/badge/react-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
   <img src="https://img.shields.io/badge/license-Proprietary-1B2C5E?style=for-the-badge" alt="License" />
 </p>
-
-<h1 align="center">PlacementIQ v2.0</h1>
-<h3 align="center">Agentic AI Career Risk Intelligence Platform</h3>
-
-<p align="center">
-  <em>A <strong>Poonawalla Fincorp</strong> initiative — AI-powered education-loan placement risk prediction for lenders,<br/>
-  built on a <strong>multi-agent architecture</strong> with real-time market intelligence.</em>
-</p>
-
 <p align="center">
   <a href="https://drive.google.com/drive/folders/1yOtAta0nSEQPCaNb2IFFw2OgZiMW4W31?usp=sharing">
     <img src="https://img.shields.io/badge/▶_Watch_Demo_Video-Google_Drive-EA4335?style=for-the-badge&logo=googledrive&logoColor=white" alt="Demo Video" />
@@ -569,7 +567,7 @@ PlacementIQ/
 </p>
 
 <p align="center">
-  <strong>PlacementIQ v2.0</strong> — Built by <strong>Team TenzorX</strong> for <strong>Poonawalla Fincorp</strong><br/>
+  <strong>PlacementIQ</strong> — Built by <strong>Team TenzorX</strong> for <strong>Poonawalla Fincorp</strong><br/>
   <sub>Career Risk Intelligence • Agentic AI • Education Loan Analytics</sub>
 </p>
 
