@@ -35,6 +35,12 @@ frontend/build/
 frontend/.vite/
 *.local
 
+# ─── Root dev tooling (puppeteer screenshot script — not part of app) ───
+/package.json
+/package-lock.json
+/take_screenshots.js
+/Output_Screenshots/
+
 # ─── IDE & OS ─────────────────────────────────────────────────
 .vscode/
 .idea/
