@@ -70,7 +70,7 @@ export default function PreScreen() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '2rem', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: '320px' }}>
           <div className="eyebrow" style={{ marginBottom: '0.85rem', color: 'var(--signal)' }}>
-            <span style={{ marginRight: '0.5em' }}>§ 02</span>
+            <span style={{ marginRight: '0.5em' }}>02</span>
             Instant Pre-Screen
           </div>
           <h1>
@@ -159,7 +159,7 @@ export default function PreScreen() {
       >
         <div className="prescreen-offer-head">
           <div>
-            <div className="eyebrow" style={{ color: 'var(--signal)' }}>§ Indicative offer</div>
+            <div className="eyebrow" style={{ color: 'var(--signal)' }}>Indicative offer</div>
             <h2 className="prescreen-offer-title">
               {offerOk ? 'Pre-approved' : 'Conditional approval'}
               <span style={{ color: 'var(--ink-faint)', fontWeight: 400, fontSize: '0.5em', marginLeft: '0.6em', verticalAlign: 'middle', letterSpacing: '0.04em' }}>

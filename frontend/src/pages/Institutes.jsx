@@ -167,7 +167,7 @@ function ColdStartPanel() {
   return (
     <div>
       <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-        KNN-based synthetic scoring for new institutes without historical placement data. (PRD §10.7)
+        KNN-based synthetic scoring for new institutes without historical placement data. (PRD 10.7)
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
         <div>
@@ -232,9 +232,9 @@ function Institutes() {
           <button key={t.id} className={`tab-btn ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>{t.label}</button>
         ))}
       </div>
-      {activeTab === 'momentum' && <div className="card"><div className="card-title"><Building2 size={14} /> Institute Momentum Index (§10.12)</div><MomentumPanel /></div>}
-      {activeTab === 'velocity' && <div className="card"><div className="card-title"><Users size={14} /> Batch Peer Velocity Tracker (§10.9)</div><VelocityPanel /></div>}
-      {activeTab === 'coldstart' && <div className="card"><div className="card-title"><Zap size={14} /> Cold-Start Institute Scoring (§10.7) ⭐</div><ColdStartPanel /></div>}
+      {activeTab === 'momentum' && <div className="card"><div className="card-title"><Building2 size={14} /> Institute Momentum Index (10.12)</div><MomentumPanel /></div>}
+      {activeTab === 'velocity' && <div className="card"><div className="card-title"><Users size={14} /> Batch Peer Velocity Tracker (10.9)</div><VelocityPanel /></div>}
+      {activeTab === 'coldstart' && <div className="card"><div className="card-title"><Zap size={14} /> Cold-Start Institute Scoring (10.7) ⭐</div><ColdStartPanel /></div>}
     </div>
   );
 }

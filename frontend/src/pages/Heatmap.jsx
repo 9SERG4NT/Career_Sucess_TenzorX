@@ -340,7 +340,7 @@ function Heatmap() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '2rem', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: '320px' }}>
           <div className="eyebrow" style={{ marginBottom: '0.85rem', color: 'var(--signal)' }}>
-            <span style={{ marginRight: '0.5em' }}>§ 03</span>
+            <span style={{ marginRight: '0.5em' }}>03</span>
             Geographic Demand
           </div>
           <h1>Dynamic Employability Map — India</h1>

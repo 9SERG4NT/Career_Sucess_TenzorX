@@ -309,7 +309,7 @@ export default function Profile() {
     <div className="animate-fade-up">
       <div className="page-header">
         <div className="eyebrow" style={{ marginBottom: '0.85rem', color: 'var(--signal)' }}>
-          <span style={{ marginRight: '0.5em' }}>§</span> Profile Linking
+          Profile Linking
         </div>
         <h1>Strengthen your application.</h1>
         <p style={{ marginTop: '0.55rem', maxWidth: '60ch' }}>

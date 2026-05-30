@@ -29,7 +29,7 @@ export default function StudentDashboard() {
       <div className="animate-fade-up">
         <div className="page-header">
           <div className="eyebrow" style={{ marginBottom: '0.85rem', color: 'var(--signal)' }}>
-            <span style={{ marginRight: '0.5em' }}>§</span> My Dashboard
+            My Dashboard
           </div>
           <h1>Welcome to PlacementIQ.</h1>
           <p style={{ marginTop: '0.55rem' }}>You haven't submitted a loan application yet. Start one to see your placement-risk profile.</p>
@@ -66,7 +66,7 @@ export default function StudentDashboard() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '2rem', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: '320px' }}>
           <div className="eyebrow" style={{ marginBottom: '0.85rem', color: 'var(--signal)' }}>
-            <span style={{ marginRight: '0.5em' }}>§ My Dashboard</span>
+            <span style={{ marginRight: '0.5em' }}>My Dashboard</span>
           </div>
           <h1>
             Hi <em style={{ fontStyle: 'italic' }}>{user?.name?.split(' ')[0] || 'there'}</em> — here's your trajectory.

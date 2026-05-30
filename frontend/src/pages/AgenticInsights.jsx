@@ -332,62 +332,68 @@ function AgenticInsights() {
         <AgentCard title="Offer Survival Agent" desc="Scores P(offer not revoked) using employer signals" icon={Shield} llmLabel={llmLabel} configured={llmConfigured} />
       </div>
 
-      <div className="grid-2" style={{ alignItems: 'start' }}>
-        {/* Live Demo */}
-        <div className="card">
-          <div className="card-title" style={{ color: 'var(--accent-purple)' }}><Activity size={15} /> Live Agent Demo</div>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-            Trigger a full pipeline execution for a specific student. This orchestrates the ML models first, then runs the agents to enrich the output.
-          </p>
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-            <input 
-              type="text" 
-              className="select-input" 
-              style={{ flex: 1, minHeight: 'auto', padding: '0.5rem 0.85rem' }} 
-              value={studentId} 
-              onChange={e => setStudentId(e.target.value)} 
-              placeholder="e.g. STU-2026-00001"
-            />
-            <button className="btn btn-primary" onClick={runDemo} disabled={running} style={{ whiteSpace: 'nowrap', background: 'var(--accent-purple)', borderColor: 'var(--accent-purple)' }}>
-              <Brain size={14} /> {running ? 'Running Pipeline...' : 'Run Full Agentic Pipeline'}
-            </button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Live Demo — horizontal layout */}
+        <div className="card" style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ flex: '0 0 420px', minWidth: 260 }}>
+            <div className="card-title" style={{ color: 'var(--accent-purple)' }}><Activity size={15} /> Live Agent Demo</div>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+              Trigger a full pipeline execution for a specific student. This orchestrates the ML models first, then runs the agents to enrich the output.
+            </p>
+
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', alignItems: 'center' }}>
+              <input
+                type="text"
+                className="select-input"
+                style={{ flex: 1, minHeight: 'auto', padding: '0.5rem 0.85rem' }}
+                value={studentId}
+                onChange={e => setStudentId(e.target.value)}
+                placeholder="e.g. STU-2026-00001"
+              />
+              <button className="btn btn-primary" onClick={runDemo} disabled={running} style={{ whiteSpace: 'nowrap', background: 'var(--accent-purple)', borderColor: 'var(--accent-purple)' }}>
+                <Brain size={14} /> {running ? 'Running Pipeline...' : 'Run Full Agentic Pipeline'}
+              </button>
+            </div>
+
+            {stage && (
+              <div style={{ marginBottom: '0.5rem' }}>
+                <PipelineTracker currentStage={stage} hasError={hasError} />
+              </div>
+            )}
           </div>
 
-          {stage && (
-            <div style={{ marginBottom: '1rem' }}>
-              <PipelineTracker currentStage={stage} hasError={hasError} />
-              <AnimatePresence mode="wait">
-                {(stage === 'done' || hasError) && (
-                  <motion.div
-                    key={hasError ? 'err' : 'ok'}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}
-                    className="pipeline-summary"
-                    data-state={hasError ? 'error' : 'done'}
-                  >
-                    {hasError
-                      ? <><AlertTriangle size={14} /> Pipeline failed{elapsedMs != null ? ` after ${elapsedMs} ms` : ''}.</>
-                      : <><Check size={14} /> Pipeline complete{elapsedMs != null ? ` in ${elapsedMs} ms` : ''}.</>
-                    }
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
+          <div style={{ flex: 1, minWidth: 280 }}>
+            <AnimatePresence mode="wait">
+              {(stage === 'done' || hasError) && (
+                <motion.div
+                  key={hasError ? 'err' : 'ok'}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}
+                  className="pipeline-summary"
+                  data-state={hasError ? 'error' : 'done'}
+                >
+                  {hasError
+                    ? <><AlertTriangle size={14} /> Pipeline failed{elapsedMs != null ? ` after ${elapsedMs} ms` : ''}.</>
+                    : <><Check size={14} /> Pipeline complete{elapsedMs != null ? ` in ${elapsedMs} ms` : ''}.</>
+                  }
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-          {result && <ResultView data={result} llmLabel={llmLabel} />}
+            {result && <ResultView data={result} llmLabel={llmLabel} />}
+          </div>
         </div>
 
-        <div>
-          {/* Architecture Diagram */}
-          <div className="card" style={{ marginBottom: '1.25rem' }}>
+        {/* Secondary cards placed underneath in a responsive two-column grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div className="card">
             <div className="card-title">System Architecture Flow</div>
             <div className="flow-diagram">
               <div className="flow-box">User Request</div>
               <div className="flow-arrow">→</div>
-              <div className="flow-box" style={{ borderColor: 'var(--accent-primary)' }}>ML Models<br/><span style={{ fontSize: '0.7rem', fontWeight: 400 }}>XGBoost + LightGBM</span></div>
+              <div className="flow-box" style={{ borderColor: 'var(--accent-primary)' }}>ML Models<br /><span style={{ fontSize: '0.7rem', fontWeight: 400 }}>XGBoost + LightGBM</span></div>
               <div className="flow-arrow">→</div>
               <div className="flow-box-agent flow-box">Agent Orchestrator</div>
               <div className="flow-arrow">→</div>
@@ -400,7 +406,6 @@ function AgenticInsights() {
             </div>
           </div>
 
-          {/* Capabilities Table */}
           <div className="card">
             <div className="card-title">Agent Capabilities & Tools</div>
             <div style={{ overflowX: 'auto' }}>
@@ -417,13 +422,13 @@ function AgenticInsights() {
                   <tr>
                     <td><strong style={{ color: 'var(--accent-purple)' }}>NBA</strong></td>
                     <td>PRD §13 rules</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-muted)' }}>get_shap_drivers<br/>get_emi_data<br/>get_intervention_cost_table</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-muted)' }}>get_shap_drivers<br />get_emi_data<br />get_intervention_cost_table</td>
                     <td>~2-3s</td>
                   </tr>
                   <tr>
                     <td><strong style={{ color: 'var(--accent-purple)' }}>Explainability</strong></td>
                     <td>NLG templates</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-muted)' }}>get_shap_drivers<br/>get_peer_cohort_stats</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-muted)' }}>get_shap_drivers<br />get_peer_cohort_stats</td>
                     <td>~1-2s</td>
                   </tr>
                   <tr>
@@ -435,7 +440,7 @@ function AgenticInsights() {
                   <tr>
                     <td><strong style={{ color: 'var(--accent-purple)' }}>Career Path</strong></td>
                     <td>Static tables</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-muted)' }}>get_adjacent_fields<br/>get_labor_market_data</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: 'var(--text-muted)' }}>get_adjacent_fields<br />get_labor_market_data</td>
                     <td>~2-4s</td>
                   </tr>
                   <tr>

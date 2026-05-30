@@ -67,9 +67,9 @@ def sanitize(obj):
 
 # ─── Derived Borrower Signals (PRD §A + §D coverage) ───────────────────────
 # Problem-statement gaps from "Career Success.docx":
-#   §A.5 Skill certifications  — was not tracked
-#   §D   Interview pipeline    — was not tracked
-#   §D   Resume updates        — was not tracked
+#   A.5 Skill certifications  — was not tracked
+#   D   Interview pipeline    — was not tracked
+#   D   Resume updates        — was not tracked
 # These are derived deterministically per student_id so the prototype can demo
 # the full data model without re-generating the underlying CSV.
 
@@ -133,7 +133,7 @@ def derive_student_signals(student: dict) -> dict:
             idxs[i], idxs[j] = idxs[j], idxs[i]
         picks = [pool[i] for i in idxs[:cert_count]]
 
-    # — Interview pipeline progress (PRD §D.2) —
+    # — Interview pipeline progress (PRD D.2) —
     # Score combines behavioral signal (job-portal activity proxy) + internship + cgpa
     raw = behavior * 0.55 + (cgpa - 4) / 6 * 100 * 0.20 + min(internship, 6) / 6 * 100 * 0.25
     interview_progress = max(0, min(100, int(round(raw))))
@@ -154,7 +154,7 @@ def derive_student_signals(student: dict) -> dict:
         "offer":      max(0, int(interviews_scheduled_30d * 0.10)),
     }
 
-    # — Resume freshness (PRD §D.3) —
+    # — Resume freshness (PRD D.3) —
     # Lower is better (more recent update). 0..120 days.
     freshness_base = 90 - behavior * 0.7
     resume_freshness_days = max(0, min(120, int(round(freshness_base + ((h >> 16) % 21) - 10))))
@@ -175,7 +175,7 @@ def derive_student_signals(student: dict) -> dict:
     }
 
 
-# ─── Recruiter Universe (PRD §A.2 + NBA recruiter-matches gap) ─────────────
+# ─── Recruiter Universe (PRD A.2 + NBA recruiter-matches gap) ─────────────
 # Plausible employer set per (field × region) with sector + tier + open-roles
 # signal. The matching endpoint joins on this and weights by student's iqi /
 # employer_tier preference / interview_progress.
@@ -490,9 +490,9 @@ async def get_student(student_id: str):
     """Returns a full scored profile for a specific student.
 
     Profile now includes derived problem-statement signals (PRD gap fix):
-      - skill_certifications (PRD §A.5)
-      - interview_progress_score + breakdown (PRD §D.2)
-      - resume_freshness_days (PRD §D.3)
+      - skill_certifications (PRD A.5)
+      - interview_progress_score + breakdown (PRD D.2)
+      - resume_freshness_days (PRD D.3)
     """
     student = next((s for s in mock_db if s.get("student_id") == student_id), None)
     if not student:
@@ -842,7 +842,7 @@ async def get_active_alerts():
 
 @app.post("/api/v1/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(alert_id: str, data: dict = {}):
-    """Mark an alert as acknowledged by the RM (PRD §11.2)."""
+    """Mark an alert as acknowledged by the RM (PRD 11.2)."""
     return {
         "status": "acknowledged",
         "alert_id": alert_id,
@@ -1151,7 +1151,7 @@ async def get_heatmap_demand(field: str = None, region: str = None):
 async def mark_nba_complete(student_id: str, data: dict = {}):
     """
     Action Completion Tracker ⭐ — marks an NBA action as completed.
-    Triggers score refresh in production. PRD §10.11.
+    Triggers score refresh in production. PRD 10.11.
     """
     student = next((s for s in mock_db if s.get("student_id") == student_id), None)
     if not student:
@@ -1199,7 +1199,7 @@ async def health():
 # PHASE 2 FEATURES
 # ═══════════════════════════════════════════════════════════════
 
-# ─── Alternate Career Path Engine (§10.4) ────────────────────
+# ─── Alternate Career Path Engine (10.4) ────────────────────
 
 CAREER_ADJACENCY = {
     "Engineering": [
@@ -1226,7 +1226,7 @@ CAREER_ADJACENCY = {
 
 @app.get("/api/v1/student/{student_id}/career-paths")
 async def get_career_paths(student_id: str, region: str = None):
-    """Alternate Career Path Engine ⭐ — PRD §10.4"""
+    """Alternate Career Path Engine ⭐ — PRD 10.4"""
     student = next((s for s in mock_db if s.get("student_id") == student_id), None)
     if not student:
         raise HTTPException(status_code=404, detail=f"Student '{student_id}' not found")
@@ -1248,15 +1248,15 @@ async def get_career_paths(student_id: str, region: str = None):
             {**p, "rank": i+1, "demand_in_region": max(30, p["demand"] - random.randint(0,15))}
             for i, p in enumerate(paths)
         ],
-        "note": "PRD §10.4 OQ-07: recommendations filtered to student geography. Relocation options available in Phase 2+.",
+        "note": "PRD 10.4 OQ-07: recommendations filtered to student geography. Relocation options available in Phase 2+.",
     })
 
 
-# ─── Cold-Start Institute Scoring (§10.7) ────────────────────
+# ─── Cold-Start Institute Scoring (10.7) ────────────────────
 
 @app.post("/api/v1/institute/cold-start")
 async def cold_start_institute(data: dict = {}):
-    """Cold-Start Institute Scoring ⭐ — PRD §10.7. KNN-based synthetic baseline."""
+    """Cold-Start Institute Scoring ⭐ — PRD 10.7. KNN-based synthetic baseline."""
     institute_name = data.get("institute_name", "New Institute")
     naac_grade = data.get("naac_grade", "B")
     city_tier = data.get("city_tier", 2)
@@ -1297,11 +1297,11 @@ async def cold_start_institute(data: dict = {}):
     })
 
 
-# ─── Batch Peer Velocity Tracker (§10.9) ─────────────────────
+# ─── Batch Peer Velocity Tracker (10.9) ─────────────────────
 
 @app.get("/api/v1/cohort/velocity")
 async def get_peer_velocity(course_type: str = None, institute_tier: str = None):
-    """Batch Peer Velocity Tracker ⭐ — PRD §10.9. Tracks cohort placement speed."""
+    """Batch Peer Velocity Tracker ⭐ — PRD 10.9. Tracks cohort placement speed."""
     if not mock_db:
         return {"cohorts": []}
 
@@ -1342,11 +1342,11 @@ async def get_peer_velocity(course_type: str = None, institute_tier: str = None)
     return sanitize({"cohorts": cohorts, "total_cohorts": len(cohorts), "as_of": "2026-05-01"})
 
 
-# ─── Institute Momentum Index (§10.12) ───────────────────────
+# ─── Institute Momentum Index (10.12) ───────────────────────
 
 @app.get("/api/v1/institutes/momentum")
 async def get_institute_momentum():
-    """Institute Momentum Index ⭐ — PRD §10.12. Rolling recruiter + offer trends."""
+    """Institute Momentum Index ⭐ — PRD 10.12. Rolling recruiter + offer trends."""
     institutes = [
         {"institute_id": "INST-001", "name": "IIT Bombay", "tier": "A", "region": "Mumbai",
          "recruiter_visits_30d": 48, "recruiter_visits_90d": 120, "offers_30d": 210, "offers_90d": 580},
@@ -1420,11 +1420,11 @@ async def update_admin_config(updates: dict = {}):
     return sanitize({"status": "updated", "config": _admin_config, "updated_at": "2026-05-01T09:30:00Z"})
 
 
-# ─── Model Fairness / Bias Audit (§16.2) ─────────────────────
+# ─── Model Fairness / Bias Audit (16.2) ─────────────────────
 
 @app.get("/api/v1/model/fairness")
 async def get_fairness_report():
-    """Bias & Fairness Audit ⭐ — PRD §16.2. Demographic parity checks."""
+    """Bias & Fairness Audit ⭐ — PRD 16.2. Demographic parity checks."""
     if not mock_db:
         return {"status": "no data"}
 
@@ -1456,11 +1456,11 @@ async def get_fairness_report():
     })
 
 
-# ─── Champion/Challenger (§14 observability) ─────────────────
+# ─── Champion/Challenger (14 observability) ─────────────────
 
 @app.get("/api/v1/model/champion-challenger")
 async def get_champion_challenger():
-    """Champion/Challenger model comparison — PRD §14 / Glossary."""
+    """Champion/Challenger model comparison — PRD 14 / Glossary."""
     return sanitize({
         "champion": {
             "version": "2.0.0-prototype",
@@ -1484,7 +1484,7 @@ async def get_champion_challenger():
 # PHASE 3 FEATURES
 # ═══════════════════════════════════════════════════════════════
 
-# ─── Offer Survival Score (§10.10) ───────────────────────────
+# ─── Offer Survival Score (10.10) ───────────────────────────
 
 COMPANY_SIGNALS = {
     "TCS": {"funding": "Public", "headcount_trend": "+2%", "glassdoor": 3.9, "layoff_risk": "LOW"},
@@ -1496,7 +1496,7 @@ COMPANY_SIGNALS = {
 
 @app.get("/api/v1/student/{student_id}/offer-survival")
 async def get_offer_survival(student_id: str, company: str = "TCS"):
-    """Offer Survival Score ⭐ — PRD §10.10. P(offer not revoked within 60 days)."""
+    """Offer Survival Score ⭐ — PRD 10.10. P(offer not revoked within 60 days)."""
     student = next((s for s in mock_db if s.get("student_id") == student_id), None)
     if not student:
         raise HTTPException(status_code=404, detail=f"Student '{student_id}' not found")
@@ -1788,6 +1788,7 @@ async def decide_loan(req: LoanDecisionRequest):
 
     if not student:
         # No record in mock_db — return a neutral CONDITIONAL with explanation.
+        profiles = linked_profiles_store.get(req.student_id, {})
         return sanitize({
             "decision": "CONDITIONAL",
             "decision_reasons": [
@@ -1798,6 +1799,7 @@ async def decide_loan(req: LoanDecisionRequest):
             "adjusted_placement_6m": None,
             "profile_boost_applied_pp": 0,
             "profile_boost_reasons": [],
+            "providers_linked": list(profiles.keys()),
             "final_offer": None,
             "fairness_note": "Decision is advisory; final underwriting includes co-borrower review and is never based solely on placement-risk prediction.",
         })

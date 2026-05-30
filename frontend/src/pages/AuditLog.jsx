@@ -148,7 +148,7 @@ export default function AuditLog() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <div className="eyebrow" style={{ marginBottom: '0.85rem', color: 'var(--signal)' }}>
-            <span style={{ marginRight: '0.5em' }}>§ Audit</span>
+            <span style={{ marginRight: '0.5em' }}>Audit</span>
           </div>
           <h1>Decision Audit Log</h1>
           <p style={{ marginTop: '0.55rem', maxWidth: '60ch' }}>
@@ -167,7 +167,7 @@ export default function AuditLog() {
           <Stat label="Logged decisions" value={data?.total_decisions_logged?.toLocaleString() || 0} />
           <Stat label="Retention" value="7 years" />
           <Stat label="Storage" value="OpenSearch + Glacier" />
-          <Stat label="Compliance basis" value="RBI · DPDP §11" />
+          <Stat label="Compliance basis" value="RBI · DPDP 11" />
         </div>
         <span className="badge badge-low" style={{ fontSize: '0.74rem' }}>
           <Archive size={11} style={{ verticalAlign: '-1px', marginRight: '4px' }} />

@@ -347,7 +347,7 @@ After setup, verify these work:
 
 ---
 
-### 8. Institute Intelligence — Momentum Index (§10.12)
+### 8. Institute Intelligence — Momentum Index (10.12)
 
 > Horizontal bar chart ranking institutes by recruiter-visits-to-offers ratio. **IIT Bombay** STRONG (1.2×) · **BITS Pilani** STABLE (1.16×) · **NIT Pune** STABLE (0.97×). Alert flags **3 institutes** in declining momentum — automatic tier-score adjustments applied.
 
@@ -365,7 +365,7 @@ After setup, verify these work:
 
 ### 10. Institute Intelligence — Cold-Start Scoring (F-09)
 
-> AI-based **synthetic scoring for new institutes** with no historical placement data (PRD §9.17). Input: NAAC Grade + City Tier. Output for "New Engineering College, Pune" (B+, Tier 2): **75.3%** synthetic placement probability · **₹82,823** avg salary forecast · **MEDIUM** confidence. Nearest reference institutes shown.
+> AI-based **synthetic scoring for new institutes** with no historical placement data (PRD 9.17). Input: NAAC Grade + City Tier. Output for "New Engineering College, Pune" (B+, Tier 2): **75.3%** synthetic placement probability · **₹50,000** avg salary forecast · **MEDIUM** confidence. Nearest reference institutes shown.
 
 ![Cold-Start Scoring](docs/screenshots/10_institutes_cold_start.png)
 
@@ -403,7 +403,7 @@ After setup, verify these work:
 
 ---
 
-### 15. Admin — Model Configuration & Fairness Audit (§16.2)
+### 15. Admin — Model Configuration & Fairness Audit (16.2)
 
 > **Champion model card**: v2.0-prototype · deployed 2026-05-01 · F1\_6m = **0.86** · Salary MAPE = **0.126** · PSI = **0.025** · traffic 100%. Challenger slot inactive. **Model Fairness Audit**: Region disparity 2.6% ✅ · Course disparity 0.6% ✅ · **Institute Tier disparity 80.5% ❌** (exceeds 10% threshold, 30-day SLA).
 

@@ -88,7 +88,7 @@ export default function SignIn() {
           transition={{ duration: 0.55, ease: [0.2, 0.7, 0.2, 1] }}
         >
           <div className="landing-eyebrow signin-eyebrow">
-            <span style={{ color: 'var(--signal)' }}>§ SIGN IN</span>
+            <span style={{ color: 'var(--signal)' }}>SIGN IN</span>
             <span style={{ width: '24px', height: '1px', background: 'var(--rule-strong)', display: 'inline-block' }} />
             <span>Pick your side</span>
           </div>

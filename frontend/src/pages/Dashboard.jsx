@@ -202,7 +202,7 @@ function PortfolioHero({ portfolio }) {
   return (
     <>
       <div className="eyebrow" style={{ marginBottom: '0.85rem', color: 'var(--signal)', marginTop: '1.75rem' }}>
-        <span style={{ marginRight: '0.5em' }}>§ 02 — Portfolio Economics</span>
+        <span style={{ marginRight: '0.5em' }}>02 — Portfolio Economics</span>
       </div>
       <div className="grid-4 portfolio-hero-grid" style={{ marginBottom: '1.75rem' }}>
         <StatCard
@@ -374,7 +374,7 @@ function Dashboard() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '2rem', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: '320px' }}>
           <div className="eyebrow" style={{ marginBottom: '0.85rem', color: 'var(--signal)' }}>
-            <span style={{ marginRight: '0.5em' }}>§ 01</span>
+            <span style={{ marginRight: '0.5em' }}>01</span>
             Cohort Intelligence
           </div>
           <h1>Portfolio Cohort Dashboard</h1>
@@ -526,7 +526,7 @@ function Dashboard() {
       <div className="card">
         <div className="section-header">
           <div>
-            <div className="eyebrow" style={{ marginBottom: '0.4rem', color: 'var(--signal)' }}>§ 02 — Watchlist</div>
+            <div className="eyebrow" style={{ marginBottom: '0.4rem', color: 'var(--signal)' }}>02 — Watchlist</div>
             <h3>Priority Student Watchlist</h3>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>

@@ -52,12 +52,11 @@ const USPS = [
 // ─── KPI count-up ──────────────────────────────────────────────────
 function Counter({ to, suffix = '', prefix = '', decimals = 0, duration = 1.6, delay = 0 }) {
   const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-10%' });
   const reduce = useReducedMotion();
   const [value, setValue] = useState(reduce ? to : 0);
 
   useEffect(() => {
-    if (!inView || reduce) return;
+    if (reduce) return;
     const controls = animate(0, to, {
       duration,
       delay,
@@ -65,7 +64,7 @@ function Counter({ to, suffix = '', prefix = '', decimals = 0, duration = 1.6, d
       onUpdate: (v) => setValue(v),
     });
     return () => controls.stop();
-  }, [inView, to, duration, delay, reduce]);
+  }, [to, duration, delay, reduce]);
 
   const display = decimals === 0
     ? Math.round(value).toLocaleString('en-IN')
@@ -107,7 +106,7 @@ function Hero({ scrollY, onScrollHint }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1, ease: [0.2, 0.7, 0.2, 1] }}
         >
-          <span style={{ color: 'var(--signal)' }}>§ POONAWALLA FINCORP</span>
+          <span style={{ color: 'var(--signal)' }}>POONAWALLA FINCORP</span>
           <span style={{ width: '24px', height: '1px', background: 'var(--rule-strong)', display: 'inline-block' }} />
           <span>Career Risk Intelligence</span>
         </motion.div>
@@ -225,7 +224,7 @@ function QuoteRotator() {
     <section className="landing-section landing-quote-section">
       <div className="landing-section-inner">
         <div className="landing-section-eyebrow">
-          <span style={{ color: 'var(--signal)' }}>§ 02</span>
+          <span style={{ color: 'var(--signal)' }}>02</span>
           <span>The Promise</span>
         </div>
 
@@ -277,7 +276,7 @@ function UspGrid() {
           transition={{ duration: 0.7, ease: [0.2, 0.7, 0.2, 1] }}
         >
           <div className="landing-section-eyebrow">
-            <span style={{ color: 'var(--signal)' }}>§ 03</span>
+          <span style={{ color: 'var(--signal)' }}>03</span>
             <span>The Unique Selling Proposition</span>
           </div>
           <h2 className="landing-section-title">
@@ -345,7 +344,7 @@ function HowItWorks() {
           transition={{ duration: 0.7 }}
         >
           <div className="landing-section-eyebrow">
-            <span style={{ color: 'var(--signal)' }}>§ 04</span>
+          <span style={{ color: 'var(--signal)' }}>04</span>
             <span>How It Works</span>
           </div>
           <h2 className="landing-section-title">

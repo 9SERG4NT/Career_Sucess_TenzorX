@@ -156,7 +156,7 @@ class ScoringEngine:
         return round(monthly_salary / monthly_emi, 2)
 
     def _determine_risk_band(self, probability: float, emi_comfort: float, data: dict) -> str:
-        # Hard override rules (from PRD §12.2)
+        # Hard override rules (from PRD 12.2)
         if self._safe_float(data.get('cgpa', 10)) < 5.0 and self._safe_int(data.get('internship_months', 1)) == 0:
             return "HIGH"
         if emi_comfort < 1.0 and emi_comfort != 99.0:

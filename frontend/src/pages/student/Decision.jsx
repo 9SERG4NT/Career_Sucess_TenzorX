@@ -69,7 +69,7 @@ export default function Decision() {
     <div className="animate-fade-up">
       <div className="page-header">
         <div className="eyebrow" style={{ marginBottom: '0.85rem', color: 'var(--signal)' }}>
-          <span style={{ marginRight: '0.5em' }}>§</span> Final Loan Decision
+          Final Loan Decision
         </div>
         <h1>Your decision is ready.</h1>
       </div>
@@ -158,8 +158,13 @@ export default function Decision() {
           </div>
           <div>
             <div className="card-title" style={{ marginBottom: '0.3rem' }}>Profiles linked</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', color: 'var(--ink)', lineHeight: 1, fontWeight: 400, fontFeatureSettings: '"tnum"' }}>
-              {decision.providers_linked?.length || 0}<span style={{ fontSize: '0.7rem', color: 'var(--ink-faint)', marginLeft: '4px' }}>/3</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '0.5rem' }}>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', color: 'var(--signal)', lineHeight: 1, fontWeight: 400, fontFeatureSettings: '"tnum"' }}>
+                {decision.providers_linked?.length || 0}<span style={{ fontSize: '0.7rem', color: 'var(--ink-faint)', marginLeft: '4px' }}>/3</span>
+              </span>
+            </div>
+            <div className="progress-bar-track" style={{ marginTop: '0.25rem' }}>
+              <div className="progress-bar-fill" style={{ width: `${((decision.providers_linked?.length || 0) / 3) * 100}%`, background: 'var(--signal)' }} />
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--ink-faint)', marginTop: '0.35rem' }}>
               {decision.providers_linked?.join(', ') || 'none'}

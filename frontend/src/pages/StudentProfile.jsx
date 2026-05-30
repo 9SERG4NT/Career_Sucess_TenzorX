@@ -20,8 +20,8 @@ function ProbabilityHorizon({ label, value, riskBand }) {
       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{label}</div>
       <div style={{
         fontSize: '1.8rem', fontWeight: 700,
-        background: barColor === 'var(--risk-low)' ? 'var(--accent-gradient-green)' : `linear-gradient(135deg, ${barColor}, ${barColor}cc)`,
-        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text'
+        color: barColor,
+        textShadow: '0 1px 0 rgba(0,0,0,0.06)'
       }}>{pct}%</div>
       <div className="progress-bar-track" style={{ marginTop: '0.5rem' }}>
         <div className="progress-bar-fill" style={{ width: `${pct}%`, background: barColor }} />
@@ -183,7 +183,7 @@ function InterventionSimulator({ studentId, studentData }) {
   );
 }
 
-// ─── Career Readiness Signals — fills PRD §A.5, §D.2, §D.3 gaps ──────────
+// ─── Career Readiness Signals — fills PRD A.5, D.2, D.3 gaps ──────────
 function CareerReadinessRow({ profile }) {
   const certs = profile.skill_certifications || [];
   const certCount = profile.skill_certs_count ?? certs.length;
@@ -201,7 +201,7 @@ function CareerReadinessRow({ profile }) {
     <div className="grid-3" style={{ marginBottom: '1.5rem' }}>
       {/* Skill certifications */}
       <div className="card" style={{ borderTop: '2px solid var(--navy)' }}>
-        <div className="card-title"><Award size={13} /> Skill Certifications · §A.5</div>
+        <div className="card-title"><Award size={13} /> Skill Certifications</div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.55rem', marginBottom: '0.85rem' }}>
           <span style={{
             fontFamily: 'var(--font-display)', fontWeight: 400,
@@ -239,7 +239,7 @@ function CareerReadinessRow({ profile }) {
 
       {/* Interview pipeline */}
       <div className="card" style={{ borderTop: `2px solid ${ipColor}` }}>
-        <div className="card-title"><MessageSquare size={13} /> Interview Pipeline · §D.2</div>
+        <div className="card-title"><MessageSquare size={13} /> Interview Pipeline</div>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
           <span style={{
             fontFamily: 'var(--font-display)', fontWeight: 400,
@@ -288,7 +288,7 @@ function CareerReadinessRow({ profile }) {
 
       {/* Resume freshness */}
       <div className="card" style={{ borderTop: `2px solid ${freshColor}` }}>
-        <div className="card-title"><FileText size={13} /> Resume Freshness · §D.3</div>
+        <div className="card-title"><FileText size={13} /> Resume Freshness</div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.55rem', marginBottom: '0.55rem' }}>
           <span style={{
             fontFamily: 'var(--font-display)', fontWeight: 400,
@@ -352,7 +352,7 @@ function RecruiterMatchesTab({ studentId }) {
   return (
     <div className="card">
       <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Handshake size={14} /> Recruiter Matches · NBA §A.2</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Handshake size={14} /> Recruiter Matches</div>
         <span className="agentic-badge">High-Potential Match</span>
       </div>
       <p style={{ fontSize: '0.85rem', color: 'var(--ink-muted)', marginBottom: '1.1rem', maxWidth: '64ch' }}>
@@ -579,7 +579,7 @@ function StudentProfile() {
         </div>
       </div>
 
-      {/* Career Readiness Signals — closes PRD §A.5 / §D.2 / §D.3 gaps */}
+      {/* Career Readiness Signals — closes PRD A.5 / D.2 / D.3 gaps */}
       <CareerReadinessRow profile={profile} />
 
       {/* Tab Navigation */}
@@ -733,7 +733,7 @@ function CareerPathsTab({ studentId }) {
   return (
     <div className="card">
       <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Map size={14} /> Alternate Career Path Engine — §10.4</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Map size={14} /> Alternate Career Path Engine</div>
         <span className="agentic-badge">Agentic AI</span>
       </div>
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -801,7 +801,7 @@ function OfferSurvivalTab({ studentId }) {
 
   return (
     <div className="card">
-      <div className="card-title"><Shield size={14} /> Offer Survival Score ⭐ — §10.10 Phase 3</div>
+      <div className="card-title"><Shield size={14} /> Offer Survival Score ⭐</div>
       <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
         Probability that a job offer will not be revoked within 60 days. Based on employer health signals: LinkedIn headcount trends, funding status, Glassdoor rating.
       </p>
