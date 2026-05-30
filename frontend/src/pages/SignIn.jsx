@@ -97,9 +97,6 @@ export default function SignIn() {
             Welcome back to{' '}
             <em style={{ fontStyle: 'italic', color: 'var(--signal)' }}>PlacementIQ.</em>
           </h1>
-          <p className="signin-sub">
-            Demo credentials are pre-filled and shown below — just click sign in.
-          </p>
 
           {/* Role picker */}
           <div className="signin-roles">
@@ -127,24 +124,7 @@ export default function SignIn() {
             })}
           </div>
 
-          {/* Demo creds banner */}
-          <div className="signin-creds-banner">
-            <div>
-              <div className="signin-creds-banner-label">Demo credentials · {role === 'admin' ? 'Lender' : 'Borrower'}</div>
-              <div className="signin-creds-banner-pair">
-                <span className="mono"><strong>{cred.username}</strong></span>
-                <span style={{ color: 'var(--ink-faint)' }}>/</span>
-                <span className="mono"><strong>{cred.password}</strong></span>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="signin-creds-fill"
-              onClick={() => { setUsername(cred.username); setPassword(cred.password); }}
-            >
-              Pre-fill
-            </button>
-          </div>
+          
 
           <form onSubmit={handleSubmit} className="signin-form">
             <label className="signin-field">

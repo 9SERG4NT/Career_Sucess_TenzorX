@@ -83,6 +83,24 @@ export default function StudentDashboard() {
         </Link>
       </div>
 
+      {/* Application review progress (if submitted) */}
+      {user?.lastApplication?.status === 'UNDER_REVIEW' && (
+        <div className="card" style={{ marginBottom: '1rem', borderLeft: '4px solid var(--signal)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div className="card-title">Application status</div>
+              <div style={{ fontSize: '0.95rem', color: 'var(--ink)' }}>Under review by lender</div>
+            </div>
+            <div style={{ minWidth: '220px' }}>
+              <div className="progress-bar-track" style={{ height: '10px', marginBottom: '0.45rem' }}>
+                <div className="progress-bar-fill" style={{ width: `${user.lastApplication.progress || 10}%`, background: 'var(--signal)' }} />
+              </div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--ink-faint)' }}>{user.lastApplication.progress || 10}% complete</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* KPI row */}
       <div className="grid-4" style={{ marginBottom: '1.5rem' }}>
         {[

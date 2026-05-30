@@ -9,6 +9,7 @@ import {
   GraduationCap, Banknote,
 } from 'lucide-react';
 import { BrandMark } from '../components/AppShell';
+import heroImg from '../assets/Gemini_Generated_Image_fwy0ukfwy0ukfwy0.png';
 
 const QUOTES = [
   {
@@ -82,7 +83,7 @@ function Hero({ scrollY, onScrollHint }) {
   const headlineWords = ['Education', 'loans,', 'but', 'with'];
 
   return (
-    <section className="landing-hero">
+    <section className="landing-hero" style={{ position: 'relative' }}>
       {/* Parallax ink wash */}
       <motion.div
         aria-hidden
@@ -185,6 +186,26 @@ function Hero({ scrollY, onScrollHint }) {
             </div>
           ))}
         </motion.div>
+
+        {/* Right-side hero image */}
+        <img
+          src={heroImg}
+          alt="Students graduating"
+          className="landing-hero-image"
+          style={{
+            position: 'absolute',
+            right: '4%',
+            top: '12%',
+            width: '36%',
+            maxWidth: '540px',
+            minWidth: '260px',
+            borderRadius: '8px',
+            
+            pointerEvents: 'none',
+            zIndex: 10,
+            objectFit: 'cover',
+          }}
+        />
 
         {/* Scroll hint */}
         <motion.button

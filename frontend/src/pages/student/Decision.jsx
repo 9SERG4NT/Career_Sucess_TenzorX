@@ -16,11 +16,13 @@ const DECISION_META = {
 };
 
 export default function Decision() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [decision, setDecision] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const fetchDecision = async () => {
     setLoading(true);
@@ -247,7 +249,7 @@ export default function Decision() {
             <Link to="/me/profile" className="btn btn-primary">
               <Plug size={13} /> Improve Score
             </Link>
-            <button className="btn btn-ghost">Accept Conditional Offer</button>
+            <button className="btn btn-ghost" onClick={() => setShowConfirm(true)}>Accept Conditional Offer</button>
           </>
         )}
         {decision.decision === 'DENY' && (
@@ -279,6 +281,40 @@ export default function Decision() {
           </div>
         )}
       </div>
+      {/* Confirmation dialog for sending to review */}
+      {showConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80 }}>
+          <div className="card" style={{ maxWidth: 520, width: '92%', padding: '1.25rem', textAlign: 'center' }}>
+            {!sent ? (
+              <>
+                <h3 style={{ marginBottom: '0.5rem' }}>Send application to review</h3>
+                <p style={{ color: 'var(--ink-muted)', marginBottom: '1rem' }}>This will submit your conditional offer to the lender for final review. Continue?</p>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '0.6rem' }}>
+                  <button className="btn btn-ghost" onClick={() => setShowConfirm(false)}>Cancel</button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      // mark application as under review in auth state (persisted to localStorage)
+                      updateUser({ hasApplication: true, lastApplication: { status: 'UNDER_REVIEW', progress: 10, submittedAt: new Date().toISOString() } });
+                      setSent(true);
+                      // small visual delay then close
+                      setTimeout(() => setShowConfirm(false), 1400);
+                    }}
+                  >
+                    Send to review
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 style={{ marginBottom: '0.5rem', color: 'var(--signal)' }}>Application sent to review!</h3>
+                <p style={{ color: 'var(--ink-muted)', marginBottom: '0.75rem' }}>Your application has been routed to the lender for final review. You can track progress on your dashboard.</p>
+                <button className="btn btn-primary" onClick={() => setShowConfirm(false)}>OK</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
