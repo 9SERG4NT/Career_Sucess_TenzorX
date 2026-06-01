@@ -26,7 +26,7 @@ import CollegeData from './pages/college/CollegeData';
 import AppShell from './components/AppShell';
 import ProtectedRoute from './components/ProtectedRoute';
 
-const API_BASE = 'http://localhost:8001';
+const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8001';
 export { API_BASE };
 
 function RoleHome() {

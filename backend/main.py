@@ -1,5 +1,7 @@
 import math
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from scoring_engine import ScoringEngine, compute_profile_boost
@@ -3102,7 +3104,21 @@ async def health():
     }
 
 
+# Serve frontend static files if present
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.isdir(static_dir):
+    app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
+    
+    @app.api_route("/{path_name:path}", methods=["GET"])
+    async def catch_all(request: Request, path_name: str):
+        if path_name.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        file_path = os.path.join(static_dir, path_name)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(static_dir, "index.html"))
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001, reload=False)
+    uvicorn.run(app, host="0.0.0.0", port=7860, reload=False)
 
