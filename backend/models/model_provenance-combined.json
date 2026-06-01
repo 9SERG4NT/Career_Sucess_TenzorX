@@ -19,7 +19,7 @@
     "12m": 0.873
   },
   "salary_mape": 0.168,
-  "trained_at_utc": "2026-06-01T17:31:22.138791+00:00",
+  "trained_at_utc": "2026-05-30T17:24:40.979947+00:00",
   "model_files": {
     "classifier_3m": "placement_classifier_3m-combined.pkl",
     "classifier": "placement_classifier-combined.pkl",

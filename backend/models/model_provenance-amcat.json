@@ -1,0 +1,31 @@
+{
+  "source": "amcat",
+  "source_path": "data/amcat_mapped.csv",
+  "row_count": 3753,
+  "placed_3m_rate": 0.41033839594990673,
+  "placed_6m_rate": 0.5864641620037303,
+  "placed_12m_rate": 0.8539834798827605,
+  "median_salary_inr": 300000,
+  "classifier_f1_6m": 0.727,
+  "classifier_acc_6m": 0.694,
+  "classifier_f1_by_horizon": {
+    "3m": 0.575,
+    "6m": 0.727,
+    "12m": 0.908
+  },
+  "classifier_acc_by_horizon": {
+    "3m": 0.692,
+    "6m": 0.694,
+    "12m": 0.832
+  },
+  "salary_mape": 0.222,
+  "trained_at_utc": "2026-05-30T17:25:06.374025+00:00",
+  "model_files": {
+    "classifier_3m": "placement_classifier_3m-amcat.pkl",
+    "classifier": "placement_classifier-amcat.pkl",
+    "classifier_12m": "placement_classifier_12m-amcat.pkl",
+    "regressor": "salary_regressor-amcat.pkl",
+    "explainer": "shap_explainer-amcat.pkl",
+    "encoders": "encoders-amcat.pkl"
+  }
+}

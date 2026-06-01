@@ -27,6 +27,10 @@ RUN pip install --no-cache-dir huggingface-hub
 # Copy backend code
 COPY backend/ ./
 
+# Generate the data and pre-trained models natively inside the container 
+# to avoid Python 3.10 vs 3.13 pickle serialization incompatibilities
+RUN python data_generator.py && python model_pipeline.py --source combined
+
 # Copy built frontend to backend/static
 COPY --from=frontend-builder /app/frontend/dist ./static
 
