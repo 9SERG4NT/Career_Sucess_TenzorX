@@ -15,10 +15,10 @@ env/
 ENV/
 
 # ─── ML Models (large binary files — regenerate with model_pipeline.py) ───
-backend/models/*.pkl
-backend/models/*.joblib
-backend/models/*.json
-backend/models/*.bin
+# backend/models/*.pkl
+# backend/models/*.joblib
+# backend/models/*.json
+# backend/models/*.bin
 # Keep the models directory but not the binaries
 !backend/models/.gitkeep
 

@@ -1,0 +1,35 @@
+{
+  "source": "combined",
+  "source_path": "AMCAT (3,753) + synthetic-annualized (10,000)",
+  "row_count": 13753,
+  "placed_3m_rate": 0.13255289754962554,
+  "placed_6m_rate": 0.42434377953900965,
+  "placed_12m_rate": 0.8168399621900676,
+  "median_salary_inr": 500000,
+  "classifier_f1_6m": 0.792,
+  "classifier_acc_6m": 0.823,
+  "classifier_f1_by_horizon": {
+    "3m": 0.532,
+    "6m": 0.792,
+    "12m": 0.925
+  },
+  "classifier_acc_by_horizon": {
+    "3m": 0.903,
+    "6m": 0.823,
+    "12m": 0.873
+  },
+  "salary_mape": 0.168,
+  "trained_at_utc": "2026-06-01T17:31:22.138791+00:00",
+  "model_files": {
+    "classifier_3m": "placement_classifier_3m-combined.pkl",
+    "classifier": "placement_classifier-combined.pkl",
+    "classifier_12m": "placement_classifier_12m-combined.pkl",
+    "regressor": "salary_regressor-combined.pkl",
+    "explainer": "shap_explainer-combined.pkl",
+    "encoders": "encoders-combined.pkl"
+  },
+  "origin_mix": {
+    "synthetic": 10000,
+    "amcat": 3753
+  }
+}
