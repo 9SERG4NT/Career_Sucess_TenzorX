@@ -1,3 +1,11 @@
+---
+title: Career Success TenzorX
+emoji: 🚀
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+---
 <h1 align="center">PlacementIQ</h1>
 <h3 align="center">Agentic AI Career Risk Intelligence Platform</h3>
 
