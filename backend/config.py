@@ -38,13 +38,10 @@ PROVIDER_REGISTRY = {
     },
     "huggingface": {
         # HF Inference Providers router — OpenAI-compatible chat completions.
-        # google/gemma-3-27b-it routes to a provider that does NOT consume the
+        # google/gemma-3-4b-it routes to a provider that does NOT consume the
         # monthly Inference-Provider credit allowance — works on the free token.
-        # Confirmed: HTTP 200 chat + native tool_calls support.
-        # If 27B is cold/unavailable, alternatives that also stay free:
-        #   google/gemma-3-12b-it  (smaller, faster cold-start)
         "base_url": "https://router.huggingface.co/v1",
-        "default_model": "google/gemma-3-27b-it",
+        "default_model": "google/gemma-3-4b-it",
         "tool_format": "openai",
         "api_key_env": "HF_TOKEN",
     },
@@ -57,7 +54,7 @@ PROVIDER_REGISTRY = {
 }
 
 # ── Active Provider ───────────────────────────────────────────────────────────
-ACTIVE_PROVIDER = os.getenv("PROVIDER", "anthropic").lower()
+ACTIVE_PROVIDER = "huggingface" # Forced to HF per user request
 
 if ACTIVE_PROVIDER not in PROVIDER_REGISTRY:
     raise ValueError(
