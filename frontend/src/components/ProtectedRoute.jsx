@@ -16,7 +16,8 @@ export default function ProtectedRoute({ role, children }) {
   }
 
   if (role && user.role !== role) {
-    const home = user.role === 'student' ? '/me/dashboard' : '/dashboard';
+    const home = user.role === 'student' ? '/me/dashboard'
+      : user.role === 'college' ? '/college/dashboard' : '/dashboard';
     return <Navigate to={home} replace />;
   }
 

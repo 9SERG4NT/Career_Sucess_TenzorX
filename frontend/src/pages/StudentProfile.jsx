@@ -5,7 +5,8 @@ import {
   ArrowLeft, User, Shield, Briefcase, Zap,
   CheckCircle2, AlertOctagon, Target, TrendingUp,
   Clock, ChevronRight, Activity, Play, Map, Building2, Info, Brain,
-  Award, MessageSquare, FileText, Handshake, IndianRupee
+  Award, MessageSquare, FileText, Handshake, IndianRupee,
+  ShieldCheck, Lock, XCircle,
 } from 'lucide-react';
 import { API_BASE } from '../App';
 
@@ -164,7 +165,7 @@ function InterventionSimulator({ studentId, studentData }) {
               { label: 'Probability', val: `${Math.round(result.probability_before * 100)}% → ${Math.round(result.probability_after * 100)}%`, highlight: result.probability_delta_pp > 0 ? 'var(--risk-low)' : 'var(--risk-high)' },
               { label: 'Delta', val: `${result.probability_delta_pp > 0 ? '+' : ''}${result.probability_delta_pp}pp`, highlight: result.probability_delta_pp > 0 ? 'var(--risk-low)' : 'var(--risk-high)' },
               { label: 'Risk Band', val: `${result.risk_band_before} → ${result.risk_band_after}`, highlight: result.risk_band_after === 'LOW' ? 'var(--risk-low)' : 'var(--text-primary)' },
-              { label: 'ROI', val: result.roi === 999 ? '∞' : `${result.roi}x`, highlight: 'var(--accent-primary)' }
+              { label: 'ROI', val: (result.roi >= 999 || result.cost_inr <= 0) ? 'High' : `${result.roi}x`, highlight: 'var(--accent-primary)' }
             ].map(({ label, val, highlight }) => (
               <div key={label} style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>{label}</div>
@@ -173,7 +174,7 @@ function InterventionSimulator({ studentId, studentData }) {
             ))}
           </div>
           <div style={{ padding: '0.75rem 1.25rem', background: 'rgba(255,255,255,0.02)', borderTop: '1px solid var(--border-color)', fontSize: '0.82rem', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
-            <span>Cost: ₹{result.cost_inr?.toLocaleString() || 0}</span>
+            <span>Cost: {result.cost_inr > 0 ? `₹${result.cost_inr.toLocaleString()}` : 'No upfront cost'}</span>
             <span style={{ color: 'var(--risk-low)', fontWeight: 600 }}>Expected lender value: ₹{result.expected_value_inr?.toLocaleString()}</span>
           </div>
         </div>
@@ -463,6 +464,175 @@ function RecruiterMatchesTab({ studentId }) {
   );
 }
 
+// ─── Verification panel (lender view) ────────────────────────────────────────
+function VChip({ status, label }) {
+  const cfg = {
+    VERIFIED:    { icon: CheckCircle2, color: 'var(--risk-low)'    },
+    PENDING:     { icon: Activity,     color: 'var(--risk-medium)'  },
+    DISCREPANCY: { icon: XCircle,      color: 'var(--risk-high)'    },
+    UNVERIFIED:  { icon: Lock,         color: 'var(--ink-faint)'    },
+  }[status || 'UNVERIFIED'];
+  const Icon = cfg.icon;
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem',
+      fontWeight: 700, color: cfg.color, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+      <Icon size={11}/>{label || status}
+    </span>
+  );
+}
+
+function VerificationPanel({ studentId, verification }) {
+  const [vData, setVData]   = useState(verification || null);
+  const [loading, setLoading] = useState(!verification);
+  const [pendingIdx, setPendingIdx] = useState(null);
+
+  useEffect(() => {
+    if (!verification) {
+      setLoading(true);
+      axios.get(`${API_BASE}/api/v1/student/${studentId}/verification`)
+        .then(r => setVData(r.data)).catch(() => {}).finally(() => setLoading(false));
+    }
+  }, [studentId, verification]);
+
+  const approveInternship = async (idx, approve) => {
+    setPendingIdx(idx);
+    try {
+      const r = await axios.post(`${API_BASE}/api/v1/admin/verify/internship/${studentId}`,
+        { internship_index: idx, approved: approve });
+      setVData(r.data);
+    } catch { /* ignore */ }
+    setPendingIdx(null);
+  };
+
+  if (loading) return <div className="card" style={{ padding: '2rem', color: 'var(--ink-muted)' }}><Activity size={14} style={{ animation: 'spin 1s linear infinite', marginRight: 8 }}/>Loading verification…</div>;
+  if (!vData) return <div className="card" style={{ padding: '2rem', color: 'var(--ink-muted)' }}>No verification data found.</div>;
+
+  const conf  = vData.confidence || {};
+  const acad  = vData.academic   || {};
+  const ints  = vData.internships   || {};
+  const certs = vData.certifications || {};
+  const plac  = vData.placement  || {};
+
+  const tierColor = conf.tier === 'HIGH' ? 'var(--risk-low)' : conf.tier === 'MEDIUM' ? 'var(--risk-medium)' : 'var(--risk-high)';
+  const pendingInt = Object.entries(ints).filter(([, v]) => v.status === 'PENDING');
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      {/* Confidence hero */}
+      <div className="card" style={{ borderLeft: `4px solid ${tierColor}` }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center' }}>
+          <div>
+            <div className="card-title" style={{ marginBottom: '0.5rem' }}><ShieldCheck size={13}/> Verification confidence</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.8rem', lineHeight: 1, color: tierColor, fontWeight: 400 }}>{conf.score ?? 0}</span>
+              <span style={{ color: 'var(--ink-faint)', fontSize: '0.85rem' }}>/ 100 · <strong style={{ color: tierColor }}>{conf.tier || 'LOW'}</strong></span>
+            </div>
+            <div style={{ marginTop: '0.5rem', height: '6px', width: '200px', background: 'var(--paper-deep)', borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${conf.score ?? 0}%`, background: tierColor }}/>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '1rem', flex: 1, minWidth: '260px' }}>
+            {[
+              { label: 'ABC ID',       pts: conf.breakdown?.academic_abc ?? 0, max: 25 },
+              { label: 'DigiLocker',   pts: conf.breakdown?.academic_digilocker ?? 0, max: 15 },
+              { label: 'Internships',  pts: conf.breakdown?.internships ?? 0, max: 25 },
+              { label: 'Certs',        pts: conf.breakdown?.certifications ?? 0, max: 20 },
+              { label: 'Placement',    pts: conf.breakdown?.placement ?? 0, max: 15 },
+            ].map(({ label, pts, max }) => (
+              <div key={label} style={{ textAlign: 'center', padding: '0.6rem', background: 'var(--paper-deep)', border: '1px solid var(--card-edge)', borderRadius: '3px' }}>
+                <div style={{ fontSize: '0.64rem', color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.3rem' }}>{label}</div>
+                <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '1rem', color: pts > 0 ? 'var(--risk-low)' : 'var(--ink-faint)' }}>
+                  {pts}<span style={{ color: 'var(--ink-faint)', fontWeight: 400, fontSize: '0.7rem' }}>/{max}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {(conf.discrepancy_flags || []).length > 0 && (
+          <div style={{ marginTop: '0.85rem', padding: '0.65rem 1rem', background: 'rgba(168,40,40,0.07)', border: '1px solid rgba(168,40,40,0.25)', borderRadius: '3px' }}>
+            <AlertOctagon size={14} color="var(--risk-high)" style={{ verticalAlign: '-2px', marginRight: '6px' }}/>
+            <strong style={{ color: 'var(--risk-high)', fontSize: '0.84rem' }}>Data discrepancy flag:</strong>
+            <span style={{ fontSize: '0.82rem', color: 'var(--ink)', marginLeft: '0.4em' }}>{conf.discrepancy_flags[0]}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Academic */}
+      <div className="card">
+        <div className="card-title" style={{ marginBottom: '0.65rem' }}>Academic</div>
+        <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap', fontSize: '0.84rem' }}>
+          <div><span style={{ color: 'var(--ink-muted)' }}>ABC ID: </span><VChip status={acad.abc_id_status}/> {acad.abc_id && <span className="mono" style={{ fontSize: '0.74rem', color: 'var(--ink-faint)', marginLeft: '4px' }}>{acad.abc_id}</span>}</div>
+          <div><span style={{ color: 'var(--ink-muted)' }}>DigiLocker: </span><VChip status={acad.digilocker_status}/></div>
+          {acad.verified_cgpa && <div><span style={{ color: 'var(--ink-muted)' }}>Verified CGPA: </span><strong className="mono" style={{ color: acad.discrepancy ? 'var(--risk-high)' : 'var(--ink)' }}>{acad.verified_cgpa}</strong>{acad.discrepancy && <span style={{ color: 'var(--risk-high)', marginLeft: '0.4em', fontSize: '0.78rem' }}>⚠ vs reported {acad.reported_cgpa_at_verify}</span>}</div>}
+        </div>
+      </div>
+
+      {/* Pending internship approvals */}
+      {pendingInt.length > 0 && (
+        <div className="card" style={{ borderLeft: '3px solid var(--risk-medium)' }}>
+          <div className="card-title" style={{ marginBottom: '0.75rem', color: 'var(--risk-medium)' }}>
+            <Activity size={13}/> Pending internship approvals ({pendingInt.length})
+          </div>
+          {pendingInt.map(([idx, v]) => (
+            <div key={idx} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', padding: '0.65rem 0', borderBottom: '1px solid var(--rule)', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '200px', fontSize: '0.84rem' }}>
+                <div style={{ fontWeight: 700 }}>{v.company_name}</div>
+                <div style={{ color: 'var(--ink-muted)', fontSize: '0.76rem' }}>Ref: {v.document_ref}</div>
+                {v.contact_email && <div style={{ color: 'var(--ink-faint)', fontSize: '0.74rem' }}>{v.contact_email}</div>}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-primary" onClick={() => approveInternship(parseInt(idx), true)}
+                  disabled={pendingIdx === parseInt(idx)} style={{ fontSize: '0.78rem', padding: '0.35rem 0.85rem', background: 'var(--risk-low)', borderColor: 'var(--risk-low)' }}>
+                  {pendingIdx === parseInt(idx) ? <Activity size={12} style={{ animation: 'spin 1s linear infinite' }}/> : <CheckCircle2 size={12}/>} Approve
+                </button>
+                <button className="btn btn-ghost" onClick={() => approveInternship(parseInt(idx), false)}
+                  disabled={pendingIdx === parseInt(idx)} style={{ fontSize: '0.78rem', padding: '0.35rem 0.85rem', color: 'var(--risk-high)' }}>
+                  <XCircle size={12}/> Reject
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Summary table of all verifications */}
+      <div className="card">
+        <div className="card-title" style={{ marginBottom: '0.75rem' }}>All verifications</div>
+        <table className="data-table">
+          <thead><tr><th>Item</th><th>Type</th><th>Status</th><th>Detail</th></tr></thead>
+          <tbody>
+            {Object.entries(ints).map(([k, v]) => (
+              <tr key={`int-${k}`}>
+                <td style={{ fontWeight: 600 }}>{v.company_name}</td>
+                <td style={{ color: 'var(--ink-muted)', fontSize: '0.8rem' }}>Internship</td>
+                <td><VChip status={v.status}/></td>
+                <td style={{ fontSize: '0.76rem', color: 'var(--ink-faint)' }}>{v.verified_by ? `by ${v.verified_by}` : v.submitted_at ? 'Submitted' : '—'}</td>
+              </tr>
+            ))}
+            {Object.entries(certs).map(([k, v]) => (
+              <tr key={`cert-${k}`}>
+                <td style={{ fontWeight: 600 }}>{v.name}</td>
+                <td style={{ color: 'var(--ink-muted)', fontSize: '0.8rem' }}>Certification</td>
+                <td><VChip status={v.status}/></td>
+                <td style={{ fontSize: '0.76rem', color: 'var(--ink-faint)' }}>{v.auto_verified ? `Auto · ${v.issuer}` : v.status === 'PENDING' ? 'Manual review' : '—'}</td>
+              </tr>
+            ))}
+            <tr>
+              <td style={{ fontWeight: 600 }}>Placement</td>
+              <td style={{ color: 'var(--ink-muted)', fontSize: '0.8rem' }}>College cell</td>
+              <td><VChip status={plac.status}/></td>
+              <td style={{ fontSize: '0.76rem', color: 'var(--ink-faint)' }}>{plac.verified_by_institute || '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+        {Object.keys(ints).length === 0 && Object.keys(certs).length === 0 && (
+          <div style={{ fontSize: '0.82rem', color: 'var(--ink-faint)', fontStyle: 'italic', paddingTop: '0.75rem' }}>Student has not submitted any verification proofs yet.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function StudentProfile() {
   const { id } = useParams();
   const [data, setData] = useState(null);
@@ -492,14 +662,19 @@ function StudentProfile() {
   const nba = insights.recommended_nba || [];
   const peer = insights.peer_benchmark;
 
+  const verification = data?.verification;
+  const conf = verification?.confidence;
+  const confColor = conf?.tier === 'HIGH' ? 'var(--risk-low)' : conf?.tier === 'MEDIUM' ? 'var(--risk-medium)' : 'var(--risk-high)';
+
   const tabs = [
-    { id: 'analysis', label: 'Risk Analysis' },
-    { id: 'explainability', label: 'AI Explainability' },
-    { id: 'simulator', label: 'Intervention Simulator ⭐' },
-    { id: 'peer', label: 'Peer Benchmark ⭐' },
-    { id: 'recruiters', label: 'Recruiter Matches ⭐' },
-    { id: 'career', label: 'Career Paths ⭐' },
-    { id: 'offer', label: 'Offer Survival ⭐' },
+    { id: 'analysis',      label: 'Risk Analysis' },
+    { id: 'verification',  label: `Verification${conf ? ` · ${conf.score}/100` : ''}` },
+    { id: 'explainability',label: 'AI Explainability' },
+    { id: 'simulator',     label: 'Intervention Simulator ⭐' },
+    { id: 'peer',          label: 'Peer Benchmark ⭐' },
+    { id: 'recruiters',    label: 'Recruiter Matches ⭐' },
+    { id: 'career',        label: 'Career Paths ⭐' },
+    { id: 'offer',         label: 'Offer Survival ⭐' },
   ];
 
   return (
@@ -522,13 +697,19 @@ function StudentProfile() {
             </p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <span className={`badge badge-${pred.risk_band.toLowerCase()}`} style={{ fontSize: '0.9rem', padding: '0.4rem 1rem' }}>
             {pred.risk_band} RISK
           </span>
           <span className="badge badge-info" style={{ fontSize: '0.78rem' }}>
-            Conf: {explain.confidence.score}/100
+            Model conf: {explain.confidence.score}/100
           </span>
+          {conf && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', fontWeight: 700,
+              color: confColor, border: `1px solid ${confColor}`, borderRadius: '2px', padding: '3px 9px' }}>
+              <ShieldCheck size={12}/> Verify: {conf.score}/100 · {conf.tier}
+            </span>
+          )}
         </div>
       </div>
 
@@ -632,6 +813,10 @@ function StudentProfile() {
             ))}
           </div>
         </div>
+      )}
+
+      {activeTab === 'verification' && (
+        <VerificationPanel studentId={id} verification={verification} />
       )}
 
       {activeTab === 'explainability' && (

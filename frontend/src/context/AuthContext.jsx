@@ -28,12 +28,18 @@ export function AuthProvider({ children }) {
     else localStorage.removeItem(STORAGE_KEY);
   }, [user]);
 
-  const signin = useCallback(({ name, email, role }) => {
+  const signin = useCallback(({ name, email, role, institute, studentId }) => {
+    const fallbackName = role === 'admin' ? 'Lender Admin'
+      : role === 'college' ? 'Placement Cell' : 'Demo Student';
     const next = {
-      name: name?.trim() || (role === 'admin' ? 'Lender Admin' : 'Demo Student'),
+      name: name?.trim() || fallbackName,
       email: email?.trim() || '',
       role,
-      studentId: role === 'student' ? studentIdFor(email || name) : null,
+      // Prefer the real student_id the backend account is bound to; only fall back
+      // to the email-derived demo id when the backend didn't supply one.
+      studentId: studentId || (role === 'student' ? studentIdFor(email || name) : null),
+      institute: (institute && String(institute).trim())
+        || (role === 'college' ? (name?.trim() || 'Demo Institute') : null),
       hasApplication: false,
       signedInAt: new Date().toISOString(),
     };

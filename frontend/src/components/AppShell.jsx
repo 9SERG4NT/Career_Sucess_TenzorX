@@ -1,13 +1,18 @@
-import React from 'react';
-import { NavLink, useNavigate, Outlet } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { NavLink, useNavigate, useLocation, Outlet, Link } from 'react-router-dom';
 import {
   LayoutDashboard, Users, BarChart3, BookOpen, LogOut,
   Building2, Settings, Brain, Sun, Moon, Zap,
   FileText, User as UserIcon, ShieldCheck, Sparkles, Archive, Plug, CheckCheck,
+  Bell, Menu, X, PanelLeftClose, PanelLeftOpen, AlertTriangle, TrendingDown,
+  GraduationCap, UserPlus,
 } from 'lucide-react';
+import axios from 'axios';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE } from '../App';
 import Background3D from './Background3D';
+import ChatWidget from './ChatWidget';
 
 // ─── Brand mark — Poonawalla "P" lettermark ─────────────────────────
 export function BrandMark({ size = 42, withWordmark = true, compact = false }) {
@@ -31,7 +36,7 @@ export function BrandMark({ size = 42, withWordmark = true, compact = false }) {
         </svg>
       </div>
       {withWordmark && (
-        <div style={{ minWidth: 0 }}>
+        <div className="brand-wordmark" style={{ minWidth: 0 }}>
           <div style={{
             fontFamily: 'var(--font-display)',
             fontSize: compact ? '1.05rem' : '1.18rem',
@@ -63,7 +68,9 @@ export function BrandMark({ size = 42, withWordmark = true, compact = false }) {
 // ─── Admin (lender) sidebar nav items ───────────────────────────────
 const ADMIN_NAV = [
   { path: '/dashboard',   icon: LayoutDashboard, label: 'Dashboard',         iconColor: '#1B2C5E' },
+  { path: '/alerts',      icon: Bell,             label: 'Alerts & Signals',  iconColor: '#A82828' },
   { path: '/students',    icon: Users,            label: 'Portfolio',         iconColor: '#1E56C7' },
+  { path: '/admin/onboard', icon: UserPlus,       label: 'Onboard Borrower',  iconColor: '#2F6E45' },
   { path: '/heatmap',     icon: BarChart3,        label: 'Heatmap',           iconColor: '#2F6E45' },
   { path: '/reports',     icon: BookOpen,         label: 'Reports & Drift',   iconColor: '#A5751F' },
   { path: '/institutes',  icon: Building2,        label: 'Institutes',        iconColor: '#1B2C5E' },
@@ -74,12 +81,18 @@ const ADMIN_NAV = [
 
 const STUDENT_NAV = [
   { path: '/me/dashboard', icon: LayoutDashboard, label: 'My Dashboard',     iconColor: '#1B2C5E' },
+  { path: '/me/academics', icon: GraduationCap,    label: 'My Profile',      iconColor: '#2F6E45' },
   { path: '/me/apply',     icon: FileText,         label: 'My Application',  iconColor: '#C2410C' },
   { path: '/me/profile',   icon: Plug,             label: 'Linked Profiles', iconColor: '#1E56C7' },
   { path: '/me/decision',  icon: CheckCheck,       label: 'Loan Decision',   iconColor: '#2F6E45' },
 ];
 
-function Sidebar({ navItems, variant }) {
+const COLLEGE_NAV = [
+  { path: '/college/dashboard', icon: BarChart3, label: 'Placement Analytics', iconColor: '#2F6E45' },
+  { path: '/college/data',      icon: Building2, label: 'Manage Data',         iconColor: '#1E56C7' },
+];
+
+function Sidebar({ navItems, variant, collapsed, onNavigate }) {
   const { theme, toggleTheme } = useTheme();
   const { user, signout } = useAuth();
   const navigate = useNavigate();
@@ -95,15 +108,15 @@ function Sidebar({ navItems, variant }) {
         <BrandMark size={40} />
       </div>
 
-      <button onClick={toggleTheme} className="theme-toggle">
+      <button onClick={toggleTheme} className="theme-toggle" title="Toggle theme">
         {theme === 'dark'
           ? <Sun size={15} color="#C2410C" />
           : <Moon size={15} color="#1B2C5E" />}
-        <span>{theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'}</span>
+        <span className="nav-label">{theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'}</span>
       </button>
 
       <span className="sidebar-section-label">
-        {variant === 'student' ? 'Borrower' : 'Navigation'}
+        {variant === 'student' ? 'Borrower' : variant === 'college' ? 'Placement Cell' : 'Navigation'}
       </span>
 
       <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -112,6 +125,8 @@ function Sidebar({ navItems, variant }) {
             key={path}
             to={path}
             end={path === '/dashboard' || path === '/me/dashboard' || path === '/admin'}
+            onClick={onNavigate}
+            title={label}
             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
           >
             {({ isActive }) => (
@@ -119,7 +134,7 @@ function Sidebar({ navItems, variant }) {
                 <div className="nav-icon-wrap" style={isActive ? { background: iconColor, borderColor: iconColor, color: 'var(--card-raised)' } : {}}>
                   <Icon size={16} />
                 </div>
-                <span style={{ fontSize: '0.875rem' }}>{label}</span>
+                <span className="nav-label" style={{ fontSize: '0.875rem' }}>{label}</span>
               </>
             )}
           </NavLink>
@@ -127,7 +142,7 @@ function Sidebar({ navItems, variant }) {
       </nav>
 
       {variant === 'student' && (
-        <div className="borrower-mini-quote">
+        <div className="borrower-mini-quote hide-when-collapsed">
           Every loan is a bet on a career.
           <div style={{
             marginTop: '0.4rem',
@@ -149,7 +164,7 @@ function Sidebar({ navItems, variant }) {
 
       <div className="sidebar-footer">
         {user && (
-          <div style={{
+          <div className="sidebar-user-card" style={{
             padding: '0.6rem 0.75rem',
             border: '1px solid var(--card-edge)',
             borderLeft: '3px solid var(--signal)',
@@ -165,7 +180,7 @@ function Sidebar({ navItems, variant }) {
             }}>
               <UserIcon size={14} color="var(--ink-muted)" />
             </div>
-            <div style={{ minWidth: 0, flex: 1 }}>
+            <div className="nav-label" style={{ minWidth: 0, flex: 1 }}>
               <div style={{
                 fontSize: '0.78rem', fontWeight: 700,
                 color: 'var(--ink)', lineHeight: 1.2,
@@ -176,14 +191,14 @@ function Sidebar({ navItems, variant }) {
                 color: 'var(--ink-faint)', textTransform: 'uppercase',
                 marginTop: '1px', fontWeight: 700,
               }}>
-                {user.role === 'student' ? 'Borrower' : 'Lender'}
+                {user.role === 'student' ? 'Borrower' : user.role === 'college' ? 'College' : 'Lender'}
               </div>
             </div>
           </div>
         )}
 
         {variant === 'admin' && (
-          <div className="api-status-pill">
+          <div className="api-status-pill hide-when-collapsed">
             <span className="pulse-dot" style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--risk-low)', display: 'inline-block', flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.2 }}>API Live</div>
@@ -203,14 +218,14 @@ function Sidebar({ navItems, variant }) {
         )}
 
         {variant === 'student' && user && (
-          <BorrowerStatusPill user={user} />
+          <div className="hide-when-collapsed"><BorrowerStatusPill user={user} /></div>
         )}
 
-        <button className="nav-item" onClick={handleSignout} style={{ color: 'var(--ink-muted)', fontSize: '0.82rem' }}>
+        <button className="nav-item" onClick={handleSignout} title="Sign out" style={{ color: 'var(--ink-muted)', fontSize: '0.82rem' }}>
           <div className="nav-icon-wrap">
             <LogOut size={15} />
           </div>
-          <span>Sign out</span>
+          <span className="nav-label">Sign out</span>
         </button>
       </div>
     </aside>
@@ -242,15 +257,172 @@ function BorrowerStatusPill({ user }) {
   );
 }
 
-export default function AppShell({ variant = 'admin' }) {
-  const navItems = variant === 'student' ? STUDENT_NAV : ADMIN_NAV;
+// ─── Notification bell — live alerts + shock feed (lender scope) ────────────
+function NotificationBell() {
+  const [open, setOpen] = useState(false);
+  const [alerts, setAlerts] = useState(null);
+  const [shocks, setShocks] = useState(null);
+  const [seen, setSeen] = useState(() => Number(localStorage.getItem('piq_alerts_seen') || 0));
+  const ref = useRef(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = () => {
+      axios.get(`${API_BASE}/api/v1/alerts/active`).then(r => active && setAlerts(r.data)).catch(() => {});
+      axios.get(`${API_BASE}/api/v1/shocks/active`).then(r => active && setShocks(r.data)).catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 60_000); // refresh every minute
+    return () => { active = false; clearInterval(id); };
+  }, []);
+
+  // Close on outside click / Escape
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const shockList = shocks?.shocks || [];
+  const critical = alerts?.critical_count || 0;
+  const liveCount = shockList.length + critical;
+  const unread = Math.max(0, liveCount - seen);
+
+  const handleToggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next) { setSeen(liveCount); localStorage.setItem('piq_alerts_seen', String(liveCount)); }
+  };
+
   return (
-    <div className="app-container">
+    <div className="notif-wrap" ref={ref}>
+      <button className="topbar-icon-btn notif-btn" onClick={handleToggle} aria-label="Notifications" title="Alerts & signals">
+        <Bell size={18} />
+        {unread > 0 && <span className="notif-badge">{unread > 9 ? '9+' : unread}</span>}
+      </button>
+
+      {open && (
+        <div className="notif-panel">
+          <div className="notif-panel-head">
+            <span>Alerts &amp; Signals</span>
+            <Link to="/alerts" onClick={() => setOpen(false)} className="notif-viewall">View all →</Link>
+          </div>
+
+          <div className="notif-list">
+            {shockList.length === 0 && critical === 0 && (
+              <div className="notif-empty">No active alerts. Portfolio is stable.</div>
+            )}
+
+            {shockList.slice(0, 3).map((s) => (
+              <Link to="/alerts" key={s.shock_id} onClick={() => setOpen(false)} className="notif-item notif-item-high">
+                <TrendingDown size={15} color="var(--risk-high)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ minWidth: 0 }}>
+                  <div className="notif-item-title">Placement Shock — {s.sector}</div>
+                  <div className="notif-item-sub">
+                    {(s.geography || []).join(', ')} · {s.affected_students?.toLocaleString()} affected
+                  </div>
+                </div>
+                <span className="badge badge-high" style={{ fontSize: '0.6rem', marginLeft: 'auto', flexShrink: 0 }}>{s.severity}</span>
+              </Link>
+            ))}
+
+            {alerts?.total > 0 && (
+              <Link to="/alerts" onClick={() => setOpen(false)} className="notif-item">
+                <AlertTriangle size={15} color="var(--risk-medium)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ minWidth: 0 }}>
+                  <div className="notif-item-title">Early Alert Engine — {alerts.total} active</div>
+                  <div className="notif-item-sub">
+                    {alerts.critical_count} critical · {alerts.high_count} high · {alerts.medium_count} medium
+                  </div>
+                </div>
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Top bar — hamburger (mobile) + collapse toggle (desktop) + bell ────────
+function AppTopbar({ variant, collapsed, onToggleCollapse, onOpenMobile }) {
+  return (
+    <header className="app-topbar">
+      <div className="topbar-left">
+        <button className="topbar-icon-btn mobile-only" onClick={onOpenMobile} aria-label="Open menu">
+          <Menu size={20} />
+        </button>
+        <button className="topbar-icon-btn desktop-only" onClick={onToggleCollapse} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+          {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
+        <div className="topbar-brand mobile-only">
+          <BrandMark size={30} withWordmark={false} />
+          <span className="topbar-brand-name">PlacementIQ</span>
+        </div>
+      </div>
+
+      <div className="topbar-right">
+        {variant === 'admin' && <NotificationBell />}
+      </div>
+    </header>
+  );
+}
+
+export default function AppShell({ variant = 'admin' }) {
+  const navItems = variant === 'student' ? STUDENT_NAV
+    : variant === 'college' ? COLLEGE_NAV : ADMIN_NAV;
+  const { user } = useAuth();
+  const location = useLocation();
+
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('piq_sidebar_collapsed') === '1');
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const toggleCollapse = useCallback(() => {
+    setCollapsed((c) => {
+      const next = !c;
+      localStorage.setItem('piq_sidebar_collapsed', next ? '1' : '0');
+      return next;
+    });
+  }, []);
+
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
+
+  return (
+    <div className={`app-container ${collapsed ? 'sidebar-collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
       <Background3D />
-      <Sidebar navItems={navItems} variant={variant} />
-      <main className="main-content">
-        <Outlet />
-      </main>
+
+      {mobileOpen && <div className="sidebar-backdrop" onClick={() => setMobileOpen(false)} />}
+
+      <Sidebar
+        navItems={navItems}
+        variant={variant}
+        collapsed={collapsed}
+        onNavigate={() => setMobileOpen(false)}
+      />
+
+      <div className="main-area">
+        <AppTopbar
+          variant={variant}
+          collapsed={collapsed}
+          onToggleCollapse={toggleCollapse}
+          onOpenMobile={() => setMobileOpen(true)}
+        />
+        <main className="main-content">
+          <Outlet />
+        </main>
+      </div>
+
+      {/* Chat is scoped to student/admin only — college has no portfolio access. */}
+      {(variant === 'student' || variant === 'admin') && (
+        <ChatWidget
+          scope={variant}
+          studentId={variant === 'student' ? user?.studentId : null}
+        />
+      )}
     </div>
   );
 }

@@ -211,6 +211,97 @@ function ColdStartPanel() {
   );
 }
 
+// ─── Partner Colleges Panel (data contributed via the College portal) ──────
+function fmtINR(n) {
+  const v = Number(n) || 0;
+  if (v >= 1e7) return `₹${(v / 1e7).toFixed(2)} Cr`;
+  if (v >= 1e5) return `₹${(v / 1e5).toFixed(1)} L`;
+  return `₹${v.toLocaleString('en-IN')}`;
+}
+
+function CollegePartnerPanel() {
+  const [colleges, setColleges] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    axios.get(`${API_BASE}/api/v1/colleges`)
+      .then(r => setColleges(r.data?.colleges || []))
+      .catch(() => setColleges([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ padding: '1rem', color: 'var(--text-secondary)' }}><RefreshCw size={14} style={{ animation: 'spin 1s linear infinite', marginRight: '0.5rem' }} />Loading...</div>;
+  if (!colleges || colleges.length === 0) return (
+    <div style={{ padding: '1.5rem', color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+      No colleges have contributed placement data yet. When a placement cell submits data via the <strong>College portal</strong>, their institute intelligence appears here.
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+        Placement intelligence contributed directly by partner placement cells — <strong>{colleges.length}</strong> institute(s) reporting.
+      </div>
+      {colleges.map((c, i) => {
+        const programs = c.programs || [];
+        const recruiters = c.recruiters || [];
+        const totalStudents = programs.reduce((a, p) => a + (Number(p.total_students) || 0), 0);
+        const totalPlaced = programs.reduce((a, p) => a + (Number(p.placed) || 0), 0);
+        const rate = totalStudents ? Math.round((totalPlaced / totalStudents) * 100) : 0;
+        const rateColor = rate >= 70 ? 'var(--risk-low)' : rate >= 45 ? 'var(--risk-medium)' : 'var(--risk-high)';
+        return (
+          <div key={i} style={{ border: '1px solid var(--border-color)', borderRadius: '10px', padding: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <div>
+                <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.95rem' }}>
+                  <Building2 size={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />{c.institute_name}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                  {c.institute_tier ? `Tier ${c.institute_tier}` : 'Tier —'}{c.accreditation ? ` · ${c.accreditation}` : ''}
+                  {c.student_status?.length ? ` · ${c.student_status.length} student(s) tracked` : ''}
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontWeight: 800, fontSize: '1.3rem', color: rateColor }}>{rate}%</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{totalPlaced}/{totalStudents} placed</div>
+              </div>
+            </div>
+            {programs.length > 0 ? (
+              <table className="data-table">
+                <thead><tr><th>Program</th><th>Placed/Total</th><th>6m</th><th>12m</th><th>Median</th><th>Highest</th></tr></thead>
+                <tbody>
+                  {programs.map((p, j) => (
+                    <tr key={j}>
+                      <td style={{ fontWeight: 500 }}>{p.program}</td>
+                      <td>{p.placed}/{p.total_students}</td>
+                      <td>{Math.round((Number(p.rate_6m) || 0) * 100)}%</td>
+                      <td>{Math.round((Number(p.rate_12m) || 0) * 100)}%</td>
+                      <td>{fmtINR(p.median_salary)}</td>
+                      <td>{fmtINR(p.highest_salary)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No programs reported.</div>}
+            {recruiters.length > 0 && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>Recruiters</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  {recruiters.map((r, k) => (
+                    <span key={k} style={{ padding: '0.25rem 0.7rem', borderRadius: '20px', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', fontSize: '0.76rem', color: 'var(--accent-primary)' }}>
+                      {r.name} · {r.selected} hired
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Main Institutes Page ─────────────────────────────────────────────────
 function Institutes() {
   const [activeTab, setActiveTab] = useState('momentum');
@@ -219,6 +310,7 @@ function Institutes() {
     { id: 'momentum', label: '📈 Institute Momentum Index' },
     { id: 'velocity', label: '⚡ Batch Peer Velocity' },
     { id: 'coldstart', label: '🔬 Cold-Start Scoring' },
+    { id: 'partners', label: '🏫 Partner Colleges' },
   ];
 
   return (
@@ -235,6 +327,7 @@ function Institutes() {
       {activeTab === 'momentum' && <div className="card"><div className="card-title"><Building2 size={14} /> Institute Momentum Index (10.12)</div><MomentumPanel /></div>}
       {activeTab === 'velocity' && <div className="card"><div className="card-title"><Users size={14} /> Batch Peer Velocity Tracker (10.9)</div><VelocityPanel /></div>}
       {activeTab === 'coldstart' && <div className="card"><div className="card-title"><Zap size={14} /> Cold-Start Institute Scoring (10.7) ⭐</div><ColdStartPanel /></div>}
+      {activeTab === 'partners' && <div className="card"><div className="card-title"><Building2 size={14} /> College-Reported Placement Data</div><CollegePartnerPanel /></div>}
     </div>
   );
 }

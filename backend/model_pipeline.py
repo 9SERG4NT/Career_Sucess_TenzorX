@@ -116,22 +116,40 @@ def train_models(source: str = 'synthetic') -> dict:
     os.makedirs('models', exist_ok=True)
     joblib.dump(encoders, f'models/encoders{suffix}.pkl')
 
-    # ── Classification (6-month placement) ─────────────────────────────
-    print("Training XGBoost classifier (6m placement) …")
-    y = df['placed_6m']
-    X_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=42)
+    # ── Classification (3m / 6m / 12m placement) ───────────────────────
+    # One XGBoost classifier per horizon so each timeline prediction is learned
+    # from its own label rather than scaled from the 6m score. The 6m model is
+    # the primary risk score: the SHAP explainer is built on it and it keeps the
+    # legacy `placement_classifier{suffix}.pkl` filename for backward compat.
+    horizon_labels = {'3m': 'placed_3m', '6m': 'placed_6m', '12m': 'placed_12m'}
+    horizon_files = {
+        '3m':  f'models/placement_classifier_3m{suffix}.pkl',
+        '6m':  f'models/placement_classifier{suffix}.pkl',   # legacy/primary name
+        '12m': f'models/placement_classifier_12m{suffix}.pkl',
+    }
+    classifiers = {}
+    horizon_metrics = {}
+    for horizon, label_col in horizon_labels.items():
+        print(f"Training XGBoost classifier ({horizon} placement) …")
+        y_h = df[label_col]
+        Xh_tr, Xh_te, yh_tr, yh_te = train_test_split(X, y_h, test_size=0.2, random_state=42)
+        model = xgb.XGBClassifier(
+            n_estimators=100, learning_rate=0.1, max_depth=4,
+            random_state=42, eval_metric='logloss',
+        )
+        model.fit(Xh_tr, yh_tr)
+        preds_h = model.predict(Xh_te)
+        f1_h  = float(f1_score(yh_te, preds_h, zero_division=0))
+        acc_h = float(accuracy_score(yh_te, preds_h))
+        print(f"  [{horizon}] F1: {f1_h:.3f}  Acc: {acc_h:.3f}")
+        joblib.dump(model, horizon_files[horizon])
+        classifiers[horizon] = model
+        horizon_metrics[horizon] = {'f1': round(f1_h, 3), 'acc': round(acc_h, 3)}
 
-    clf = xgb.XGBClassifier(
-        n_estimators=100, learning_rate=0.1, max_depth=4,
-        random_state=42, eval_metric='logloss',
-    )
-    clf.fit(X_tr, y_tr)
-    preds_c = clf.predict(X_te)
-    f1  = float(f1_score(y_te, preds_c))
-    acc = float(accuracy_score(y_te, preds_c))
-    print(f"  F1  : {f1:.3f}")
-    print(f"  Acc : {acc:.3f}")
-    joblib.dump(clf, f'models/placement_classifier{suffix}.pkl')
+    # 6m is the primary model — reused for SHAP and headline provenance metrics.
+    clf = classifiers['6m']
+    f1  = horizon_metrics['6m']['f1']
+    acc = horizon_metrics['6m']['acc']
 
     # ── Regression (salary, only for placed students with positive salary) ──
     print("\nTraining LightGBM regressor (salary) …")
@@ -165,18 +183,23 @@ def train_models(source: str = 'synthetic') -> dict:
         'source':            source,
         'source_path':       src_label,
         'row_count':         int(len(df)),
+        'placed_3m_rate':    float(df['placed_3m'].mean()),
         'placed_6m_rate':    float(df['placed_6m'].mean()),
         'placed_12m_rate':   float(df['placed_12m'].mean()),
         'median_salary_inr': int(placed_salaries.median()) if len(placed_salaries) else 0,
         'classifier_f1_6m':  round(f1, 3),
         'classifier_acc_6m': round(acc, 3),
+        'classifier_f1_by_horizon':  {h: m['f1'] for h, m in horizon_metrics.items()},
+        'classifier_acc_by_horizon': {h: m['acc'] for h, m in horizon_metrics.items()},
         'salary_mape':       None if np.isnan(mape) else round(mape, 3),
         'trained_at_utc':    datetime.now(timezone.utc).isoformat(),
         'model_files': {
-            'classifier': f'placement_classifier{suffix}.pkl',
-            'regressor':  f'salary_regressor{suffix}.pkl',
-            'explainer':  f'shap_explainer{suffix}.pkl',
-            'encoders':   f'encoders{suffix}.pkl',
+            'classifier_3m':  f'placement_classifier_3m{suffix}.pkl',
+            'classifier':     f'placement_classifier{suffix}.pkl',
+            'classifier_12m': f'placement_classifier_12m{suffix}.pkl',
+            'regressor':      f'salary_regressor{suffix}.pkl',
+            'explainer':      f'shap_explainer{suffix}.pkl',
+            'encoders':       f'encoders{suffix}.pkl',
         },
     }
     if '_origin' in df.columns:

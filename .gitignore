@@ -24,6 +24,11 @@ backend/models/*.bin
 
 # ─── Data (regenerate with data_generator.py) ────────────────
 backend/data/*.csv
+# Runtime stores — credentials + college/portfolio mutations (not for VCS)
+backend/data/accounts.json
+backend/data/college_data.json
+backend/data/student_profiles.json
+backend/data/verification.json
 # Keep the data directory
 !backend/data/.gitkeep
 

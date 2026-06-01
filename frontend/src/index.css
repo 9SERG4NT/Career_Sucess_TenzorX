@@ -1226,6 +1226,8 @@ textarea.select-input { padding: 0.7rem 0.9rem; min-height: 84px; }
 
 .landing-headline-word {
   display: inline-block;
+  /* inline-block trims the trailing JSX space, so add an explicit word gap */
+  margin-right: 0.25em;
 }
 
 .landing-headline-italic {
@@ -3120,4 +3122,189 @@ textarea.select-input { padding: 0.7rem 0.9rem; min-height: 84px; }
 /* ── Audit row hover ─────────────────────────────────────────── */
 .audit-row:hover {
   background: var(--card-raised);
+}
+
+/* ════════════════════════════════════════════════════════════
+   APP SHELL — topbar · collapsible sidebar · mobile drawer · bell
+   Responsive layout for the whole authenticated app.
+   ════════════════════════════════════════════════════════════ */
+
+/* Fixed-viewport shell so the topbar can stay pinned and the content
+   region owns the scroll. (Public landing/sign-in are outside AppShell.) */
+.app-container { height: 100vh; overflow: hidden; }
+
+.main-area {
+  flex: 1;
+  min-width: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+}
+
+.app-topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: 56px;
+  padding: 0 1.25rem;
+  background: var(--card-raised);
+  border-bottom: 1px solid var(--card-edge);
+}
+.topbar-left, .topbar-right { display: flex; align-items: center; gap: 0.6rem; }
+
+/* main-content now owns the vertical scroll */
+.main-area > .main-content { flex: 1; height: auto; }
+
+.topbar-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px;
+  border: 1px solid var(--card-edge);
+  background: transparent;
+  color: var(--ink-muted);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: color 0.18s, background 0.18s, border-color 0.18s;
+  position: relative;
+}
+.topbar-icon-btn:hover {
+  color: var(--ink);
+  background: var(--paper-deep);
+  border-color: var(--card-edge-strong);
+}
+
+.topbar-brand { display: flex; align-items: center; gap: 8px; }
+.topbar-brand-name {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+/* Viewport visibility utilities */
+.mobile-only { display: none !important; }
+.desktop-only { display: inline-flex; }
+
+/* ─── Notification bell + dropdown ─────────────────────────────── */
+.notif-wrap { position: relative; }
+.notif-badge {
+  position: absolute; top: -4px; right: -4px;
+  min-width: 17px; height: 17px; padding: 0 4px;
+  background: var(--risk-high); color: #fff;
+  border-radius: 999px;
+  font-family: var(--font-mono); font-size: 0.6rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--card-raised);
+}
+.notif-panel {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: 344px; max-width: 90vw;
+  background: var(--card-raised);
+  border: 1px solid var(--card-edge-strong);
+  border-radius: 3px;
+  box-shadow: var(--shadow-raised);
+  z-index: 30;
+  overflow: hidden;
+  animation: fadeUp 0.18s ease;
+}
+.notif-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ink-muted);
+}
+.notif-viewall { color: var(--signal); text-decoration: none; font-size: 0.66rem; letter-spacing: 0.06em; }
+.notif-viewall:hover { text-decoration: underline; }
+.notif-list { max-height: 360px; overflow-y: auto; }
+.notif-empty { padding: 1.5rem 1rem; color: var(--ink-faint); font-size: 0.84rem; text-align: center; }
+.notif-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.notif-item:hover { background: var(--paper-deep); }
+.notif-item:last-child { border-bottom: none; }
+.notif-item-high { border-left: 3px solid var(--risk-high); }
+.notif-item-title { font-size: 0.82rem; font-weight: 700; color: var(--ink); line-height: 1.3; }
+.notif-item-sub { font-size: 0.72rem; color: var(--ink-faint); margin-top: 2px; }
+
+/* ─── Clickable stat cards — zoom / focus on hover ─────────────── */
+.card-clickable { cursor: pointer; }
+.card-clickable .stat-card-arrow {
+  position: absolute; right: 1rem; bottom: 1rem;
+  color: var(--ink-faint); opacity: 0; transform: translateX(-4px);
+  transition: opacity 0.25s ease, transform 0.25s ease, color 0.25s ease;
+}
+.interactive-3d-card.card-clickable:hover {
+  transform: translateY(-4px) scale(1.025);
+  border-color: var(--signal);
+  box-shadow: var(--shadow-raised), 0 0 0 1px var(--signal-soft);
+  z-index: 2;
+}
+.card-clickable:hover .stat-card-arrow { opacity: 1; transform: translateX(0); color: var(--signal); }
+.card-clickable:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+/* ─── Collapsible sidebar (desktop ≥ 861px) ────────────────────── */
+@media (min-width: 861px) {
+  .sidebar { transition: width 0.22s ease, min-width 0.22s ease, padding 0.22s ease; }
+  .sidebar-collapsed .sidebar {
+    width: 76px; min-width: 76px;
+    padding-left: 0.55rem; padding-right: 0.55rem;
+  }
+  .sidebar-collapsed .nav-label,
+  .sidebar-collapsed .brand-wordmark,
+  .sidebar-collapsed .sidebar-section-label,
+  .sidebar-collapsed .hide-when-collapsed { display: none; }
+  .sidebar-collapsed .sidebar-logo { justify-content: center; padding-left: 0; padding-right: 0; }
+  .sidebar-collapsed .theme-toggle { justify-content: center; padding-left: 0; padding-right: 0; }
+  .sidebar-collapsed .nav-item { justify-content: center; padding-left: 0.4rem; padding-right: 0.4rem; gap: 0; }
+  .sidebar-collapsed .nav-item.active::before { left: -0.55rem; }
+  .sidebar-collapsed .sidebar-user-card { justify-content: center; padding-left: 0; padding-right: 0; }
+}
+
+/* ─── Mobile drawer (≤ 860px) ──────────────────────────────────── */
+.sidebar-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(10, 12, 20, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 40;
+  animation: fadeUp 0.2s ease;
+}
+@media (max-width: 860px) {
+  .mobile-only { display: inline-flex !important; }
+  .desktop-only { display: none !important; }
+
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 100vh;
+    width: 272px; min-width: 272px;
+    transform: translateX(-100%);
+    transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 50;
+    box-shadow: var(--shadow-raised);
+  }
+  .mobile-open .sidebar { transform: translateX(0); }
+
+  .main-content { padding: 1.5rem 1.25rem 3rem; }
+  .page-header { margin-bottom: 1.75rem; }
+  .page-header h1 { font-size: 1.85rem; }
+  .section-header { gap: 0.75rem; }
+}
+
+@media (max-width: 480px) {
+  .app-topbar { padding: 0 0.85rem; height: 52px; }
+  .main-content { padding: 1.25rem 1rem 2.5rem; }
+  .page-header h1 { font-size: 1.5rem; }
+  .page-header p { font-size: 0.85rem; }
+  .stat-value { font-size: 2.1rem; }
+  .notif-panel { width: calc(100vw - 1.5rem); }
+  .btn { padding: 0.55rem 0.95rem; font-size: 0.72rem; }
 }

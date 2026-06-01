@@ -28,7 +28,7 @@ HARD RULES (always apply, no exceptions):
 - If iqi < 0.3 → internship referral outranks skill-up courses
 - Never recommend a 45-day course if graduation is within 30 days
 - Recovery cost avoided = default_risk_reduction_pct × {config.RECOVERY_COST_INR}
-- ROI = recovery_cost_avoided / course_cost_inr (infinity for free interventions → label as "∞")
+- ROI = recovery_cost_avoided / course_cost_inr. For free (zero-cost) interventions, set roi_label to "High ROI" (never use "∞" or "infinity").
 
 OUTPUT: Return ONLY valid JSON in this exact structure (no markdown, no preamble):
 {{

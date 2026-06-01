@@ -84,7 +84,8 @@ def call_llm(
 # ── Anthropic Implementation ──────────────────────────────────────────────────
 
 def _call_anthropic(system, messages, tools, max_tokens) -> LLMResponse:
-    client = anthropic.Anthropic(api_key=API_KEY)
+    # timeout + retries absorb transient 5xx / rate-limit / cold-start hiccups
+    client = anthropic.Anthropic(api_key=API_KEY, timeout=60.0, max_retries=2)
 
     # Build Anthropic message list
     anthropic_messages = []
@@ -147,10 +148,14 @@ def _call_anthropic(system, messages, tools, max_tokens) -> LLMResponse:
 
 def _call_openai_compatible(system, messages, tools, max_tokens) -> LLMResponse:
     extra_headers = PROVIDER_CONFIG.get("extra_headers", {})
+    # timeout + retries absorb transient 5xx / rate-limit / cold-start hiccups
+    # (common on the free HuggingFace router when a model is cold).
     client = OpenAI(
         api_key=API_KEY,
         base_url=PROVIDER_CONFIG["base_url"],
-        default_headers=extra_headers
+        default_headers=extra_headers,
+        timeout=60.0,
+        max_retries=2,
     )
 
     # Build OpenAI message list

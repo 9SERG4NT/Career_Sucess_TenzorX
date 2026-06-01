@@ -9,6 +9,7 @@ import {
   GraduationCap, Banknote,
 } from 'lucide-react';
 import { BrandMark } from '../components/AppShell';
+import ChatWidget from '../components/ChatWidget';
 import heroImg from '../assets/Gemini_Generated_Image_fwy0ukfwy0ukfwy0.png';
 
 const QUOTES = [
@@ -476,6 +477,7 @@ export default function Landing() {
       <UspGrid />
       <HowItWorks />
       <ClosingCta />
+      <ChatWidget scope="public" />
     </div>
   );
 }

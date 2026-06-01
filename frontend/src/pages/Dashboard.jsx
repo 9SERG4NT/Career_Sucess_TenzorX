@@ -17,16 +17,9 @@ const RISK_COLORS = { LOW: '#2F6E45', MEDIUM: '#A5751F', HIGH: '#A82828' };
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
-function StatCard({ icon: Icon, iconClass, accentColor, title, value, sub, index = 0 }) {
-  return (
-    <div
-      className="card card-sm interactive-3d-card"
-      style={{
-        position: 'relative',
-        borderTop: `2px solid ${accentColor}`,
-        paddingTop: '1.55rem',
-      }}
-    >
+function StatCard({ icon: Icon, iconClass, accentColor, title, value, sub, index = 0, to }) {
+  const inner = (
+    <>
       {/* Editorial serial — italic serif numeral, top-right */}
       <span
         className="serial"
@@ -47,8 +40,25 @@ function StatCard({ icon: Icon, iconClass, accentColor, title, value, sub, index
       <div className="card-title" style={{ marginBottom: '0.5rem' }}>{title}</div>
       <div className="stat-value" style={{ color: 'var(--ink)' }}>{value}</div>
       {sub && <div className="stat-sub">{sub}</div>}
-    </div>
+      {to && <ChevronRight className="stat-card-arrow" size={15} />}
+    </>
   );
+
+  const className = `card card-sm interactive-3d-card${to ? ' card-clickable' : ''}`;
+  const style = {
+    position: 'relative',
+    borderTop: `2px solid ${accentColor}`,
+    paddingTop: '1.55rem',
+  };
+
+  if (to) {
+    return (
+      <Link to={to} className={className} style={{ ...style, textDecoration: 'none', display: 'block' }}>
+        {inner}
+      </Link>
+    );
+  }
+  return <div className={className} style={style}>{inner}</div>;
 }
 
 function PlacementVelocityBar({ label, value, color }) {
@@ -81,70 +91,6 @@ function PlacementVelocityBar({ label, value, color }) {
           }}
         />
       </div>
-    </div>
-  );
-}
-
-function AlertBanner() {
-  const [alerts, setAlerts] = useState(null);
-  const [shocks, setShocks] = useState(null);
-
-  useEffect(() => {
-    axios.get(`${API_BASE}/api/v1/alerts/active`).then(r => setAlerts(r.data)).catch(() => {});
-    axios.get(`${API_BASE}/api/v1/shocks/active`).then(r => setShocks(r.data)).catch(() => {});
-  }, []);
-
-  const hasShock = shocks?.shocks?.length > 0;
-  const shock = shocks?.shocks?.[0];
-  const hasAlerts = alerts?.total > 0;
-
-  if (!hasShock && !hasAlerts) return null;
-
-  return (
-    <div style={{ marginBottom: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-      {hasShock && (
-        <div
-          className="alert-banner alert-high"
-          style={{ animation: 'borderGlow 3s ease-in-out infinite' }}
-        >
-          <AlertTriangle size={18} color="var(--risk-high)" style={{ marginTop: '2px', flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>
-            <strong style={{ fontSize: '0.9rem', color: 'var(--risk-high)' }}>
-              Placement Shock — {shock.sector} · {shock.geography?.join(', ')}
-            </strong>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.82rem', marginTop: '0.25rem', lineHeight: 1.5 }}>
-              {shock.trigger} ·{' '}
-              <strong style={{ color: 'var(--risk-high)' }}>
-                {shock.affected_students?.toLocaleString()} students affected
-              </strong>{' '}
-              · {shock.recommended_action}
-            </p>
-          </div>
-          <span className="badge badge-high" style={{ flexShrink: 0 }}>{shock.severity}</span>
-        </div>
-      )}
-      {hasAlerts && (
-        <div
-          className="alert-banner"
-          style={{
-            background: 'rgba(245,158,11,0.05)',
-            border: '1px solid rgba(245,158,11,0.25)',
-            borderLeftColor: 'var(--risk-medium)',
-          }}
-        >
-          <AlertTriangle size={16} color="var(--risk-medium)" style={{ flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>
-            <strong style={{ fontSize: '0.875rem', color: 'var(--risk-medium)' }}>
-              Early Alert Engine — {alerts.total} Active Alerts
-            </strong>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.15rem' }}>
-              {alerts.critical_count} critical · {alerts.high_count} high · {alerts.medium_count} medium
-              {alerts.alerts?.[0] && ` · ${alerts.alerts[0].student_id} — ${alerts.alerts[0].reason?.slice(0, 55)}`}
-            </p>
-          </div>
-          <span className="badge badge-medium" style={{ flexShrink: 0 }}>{alerts.critical_count} Critical</span>
-        </div>
-      )}
     </div>
   );
 }
@@ -307,11 +253,15 @@ function Dashboard() {
     try {
       const [sumRes, stuRes, pfRes] = await Promise.all([
         axios.get(`${API_BASE}/api/v1/cohort/summary`),
-        axios.get(`${API_BASE}/api/v1/students?limit=20`),
+        // Fetch a representative 60-record sample: the backend now returns
+        // {students:[...], total:N} so we extract the array.
+        axios.get(`${API_BASE}/api/v1/students`, { params: { limit: 60, sort: 'risk' } }),
         axios.get(`${API_BASE}/api/v1/portfolio/summary`).catch(() => ({ data: null })),
       ]);
       setSummary(sumRes.data);
-      setStudents(stuRes.data);
+      // Accept both old (array) and new ({students}) shapes gracefully.
+      const stuData = stuRes.data;
+      setStudents(Array.isArray(stuData) ? stuData : (stuData?.students || []));
       setPortfolio(pfRes.data);
       setError(null);
     } catch {
@@ -324,15 +274,16 @@ function Dashboard() {
 
   useEffect(() => { fetchData(); }, []);
 
+  const BAND_ORDER = { HIGH: 0, MEDIUM: 1, LOW: 2 };
   const filteredStudents = students.filter(s => {
-    const mockRisk = s.placed_6m === 0 && s.cgpa < 6.0 ? 'HIGH' : s.placed_6m === 1 ? 'LOW' : 'MEDIUM';
-    const matchesRisk = filterRisk === 'ALL' || mockRisk === filterRisk;
+    const band = s.risk_band || 'MEDIUM';
+    const matchesRisk = filterRisk === 'ALL' || band === filterRisk;
     const matchesSearch =
       s.student_id?.toLowerCase().includes(search.toLowerCase()) ||
       s.course_type?.toLowerCase().includes(search.toLowerCase()) ||
       s.region?.toLowerCase().includes(search.toLowerCase());
     return matchesRisk && matchesSearch;
-  });
+  }).sort((a, b) => (BAND_ORDER[a.risk_band] ?? 1) - (BAND_ORDER[b.risk_band] ?? 1));
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '4rem 2rem', color: 'var(--text-secondary)' }}>
@@ -392,9 +343,6 @@ function Dashboard() {
         </button>
       </div>
 
-      {/* Alert Banners */}
-      <AlertBanner />
-
       {/* KPI Row */}
       <div className="grid-5 perspective-container" style={{ marginBottom: '2.25rem' }}>
         <StatCard
@@ -403,6 +351,7 @@ function Dashboard() {
           title="Total Portfolio"
           value={summary.total_students?.toLocaleString()}
           sub="+2.4% vs last month"
+          to="/students"
         />
         <StatCard
           index={1}
@@ -410,6 +359,7 @@ function Dashboard() {
           title="High Risk"
           value={summary.risk_distribution.HIGH?.toLocaleString()}
           sub="Requires immediate action"
+          to="/alerts"
         />
         <StatCard
           index={2}
@@ -417,6 +367,7 @@ function Dashboard() {
           title="6M Velocity"
           value={`${summary.placement_velocity?.['6m']}%`}
           sub="Avg placement probability"
+          to="/reports"
         />
         <StatCard
           index={3}
@@ -431,6 +382,7 @@ function Dashboard() {
           title="AI Agents"
           value="5 Active"
           sub="NBA · Explainability · Market"
+          to="/agentic"
         />
       </div>
 
@@ -583,7 +535,7 @@ function Dashboard() {
                   </td>
                 </tr>
               ) : filteredStudents.map(s => {
-                const mockRisk = s.placed_6m === 0 && s.cgpa < 6.0 ? 'HIGH' : s.placed_6m === 1 ? 'LOW' : 'MEDIUM';
+                const band = s.risk_band || 'MEDIUM';
                 return (
                   <tr key={s.student_id}>
                     <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 500, fontSize: '0.78rem', color: 'var(--navy)', letterSpacing: '-0.01em' }}>
@@ -626,8 +578,8 @@ function Dashboard() {
                       </span>
                     </td>
                     <td>
-                      <span className={`badge badge-${mockRisk.toLowerCase()}`}>
-                        {mockRisk}
+                      <span className={`badge badge-${band.toLowerCase()}`}>
+                        {band}
                       </span>
                     </td>
                     <td>

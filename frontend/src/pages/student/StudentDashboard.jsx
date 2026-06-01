@@ -5,7 +5,7 @@ import axios from 'axios';
 import {
   Shield, Briefcase, Sparkles, Handshake, IndianRupee,
   Award, MessageSquare, FileText, CheckCircle2, ArrowRight, FilePen,
-  Plug, CheckCheck,
+  Plug, CheckCheck, GraduationCap,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { API_BASE } from '../../App';
@@ -15,16 +15,68 @@ export default function StudentDashboard() {
   const result = user?.lastPrescreen;
   const application = user?.lastApplication;
   const [profileAgg, setProfileAgg] = useState(null);
+  const [real, setReal] = useState(null);   // live scored record (bound borrowers)
 
   useEffect(() => {
     if (!user?.studentId) return;
     axios.get(`${API_BASE}/api/v1/profile/${user.studentId}`)
       .then(r => setProfileAgg(r.data))
       .catch(() => {});
+    // A lender-onboarded borrower has a real record even without a local pre-screen.
+    axios.get(`${API_BASE}/api/v1/student/${user.studentId}`)
+      .then(r => setReal(r.data))
+      .catch(() => {});
   }, [user?.studentId]);
 
-  // No application yet → route to apply
+  // No local pre-screen → if a real scored record exists, show it; else prompt to apply.
   if (!result) {
+    const pred = real?.analysis?.prediction;
+    if (pred) {
+      const rb = pred.risk_band || 'MEDIUM';
+      const rc = rb === 'LOW' ? 'var(--risk-low)' : rb === 'HIGH' ? 'var(--risk-high)' : 'var(--risk-medium)';
+      const p6 = Math.round((pred.placement_probability?.['6m'] || 0) * 100);
+      return (
+        <div className="animate-fade-up">
+          <div className="page-header">
+            <div className="eyebrow" style={{ marginBottom: '0.85rem', color: 'var(--signal)' }}>My Dashboard</div>
+            <h1>Hi <em style={{ fontStyle: 'italic' }}>{user?.name?.split(' ')[0] || 'there'}</em> — here's where you stand.</h1>
+            <p style={{ marginTop: '0.55rem' }}>
+              Your lender set up this account. Keep your academics current and your score updates live —
+              for you and for them.
+            </p>
+          </div>
+          <div className="grid-4" style={{ marginBottom: '1.5rem' }}>
+            <div className="card card-sm" style={{ borderTop: `2px solid ${rc}` }}>
+              <div className="card-title">Risk band</div>
+              <div className="stat-value" style={{ color: rc }}>{rb}</div>
+            </div>
+            <div className="card card-sm" style={{ borderTop: `2px solid ${rc}` }}>
+              <div className="card-title">6M placement</div>
+              <div className="stat-value" style={{ color: rc }}>{p6}%</div>
+            </div>
+            <div className="card card-sm" style={{ borderTop: '2px solid var(--navy)' }}>
+              <div className="card-title">CGPA</div>
+              <div className="stat-value">{Number(real.profile?.cgpa ?? 0).toFixed(1)}</div>
+            </div>
+            <div className="card card-sm" style={{ borderTop: `2px solid ${(real.profile?.active_backlogs ?? 0) > 0 ? 'var(--risk-high)' : 'var(--risk-low)'}` }}>
+              <div className="card-title">Active backlogs</div>
+              <div className="stat-value" style={{ color: (real.profile?.active_backlogs ?? 0) > 0 ? 'var(--risk-high)' : 'var(--ink)' }}>{real.profile?.active_backlogs ?? 0}</div>
+            </div>
+          </div>
+          <div className="card" style={{ textAlign: 'center', padding: '2.5rem 2rem' }}>
+            <GraduationCap size={32} style={{ color: 'var(--signal)', marginBottom: '0.85rem' }} />
+            <h3 style={{ marginBottom: '0.5rem' }}>Keep your record up to date</h3>
+            <p style={{ color: 'var(--ink-muted)', maxWidth: '50ch', margin: '0 auto 1.5rem' }}>
+              Update your CGPA, internships, and backlogs each semester. Every change re-scores instantly.
+            </p>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Link to="/me/academics" className="btn btn-primary"><GraduationCap size={14} /> Update my academics</Link>
+              <Link to="/me/apply" className="btn btn-ghost"><FilePen size={14} /> Apply for a loan</Link>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="animate-fade-up">
         <div className="page-header">

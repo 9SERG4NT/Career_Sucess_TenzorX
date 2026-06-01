@@ -21,16 +21,69 @@ def _get_engine():
     return _engine
 
 def _get_df():
-    global _df
-    if _df is None:
-        csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "synthetic_students.csv")
-        _df = pd.read_csv(csv_path)
-    return _df
+    # Delegate to the shared store so runtime uploads are visible here too.
+    from student_store import get_df
+    return get_df()
+
+
+def _coarse_field(field: str) -> str:
+    """Map a fine-grained field label (e.g. 'Software Engineering', 'MBA-Finance')
+    to the coarse buckets used in market_data.json: Engineering / MBA / Nursing."""
+    f = (field or "").lower()
+    if any(k in f for k in ("nurs", "health", "clinical", "pharma")):
+        return "Nursing"
+    if any(k in f for k in ("mba", "finance", "management", "business", "bfsi")):
+        return "MBA"
+    return "Engineering"
 
 
 # ── Tool Definitions (Anthropic format — auto-converted for other providers) ──
 
 TOOL_DEFINITIONS = [
+    {
+        "name": "lookup_student",
+        "description": (
+            "Look up a student by their student_id and return their FULL scored "
+            "profile in one call: placement probability at 3/6/12 months, risk "
+            "band, expected salary range, EMI comfort index, top risk drivers, and "
+            "recommended actions. Use this whenever you need a student's numbers — "
+            "you NEVER need to ask the user for CGPA, features, or any data; just "
+            "pass the student_id (e.g. 'STU-2026-00001')."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "student_id": {
+                    "type": "string",
+                    "description": "e.g. 'STU-2026-00001'"
+                }
+            },
+            "required": ["student_id"]
+        }
+    },
+    {
+        "name": "ingest_students",
+        "description": (
+            "ADMIN ONLY. Onboard one or more students into the portfolio. Pass a list "
+            "of records you parsed from whatever the user provided (JSON, CSV rows, or "
+            "free text). Each record may include any of: student_id (optional — "
+            "auto-generated if absent), course_type, institute_tier (A/B/C/D), region, "
+            "cgpa, internship_months, employer_tier, iqi, behavioral_activity_score, "
+            "field_demand_score, macro_climate_index, monthly_emi. Missing fields get "
+            "sensible defaults. Returns the ids added and the new portfolio total."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "students": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "List of student record objects to add."
+                }
+            },
+            "required": ["students"]
+        }
+    },
     {
         "name": "predict_placement_probability",
         "description": (
@@ -255,6 +308,66 @@ def _dispatch(name: str, inp: dict) -> dict:
             "risk_score": result.get("risk_score", 50),
         }
 
+    elif name == "lookup_student":
+        sid = inp.get("student_id", "")
+        df = _get_df()
+        rows = df[df["student_id"] == sid]
+        if len(rows) == 0:
+            return {
+                "found": False, "student_id": sid,
+                "error": f"No student found with id '{sid}'. Ask the user to re-check it (format: STU-2026-#####).",
+            }
+        # Cast numpy scalars to native types so json.dumps and the engine are happy.
+        row = {k: (v.item() if hasattr(v, "item") else v) for k, v in rows.iloc[0].to_dict().items()}
+        scored = _get_engine().score_student(row)
+        pred = scored.get("prediction", {})
+        ins = scored.get("insights", {})
+        exp = scored.get("explainability", {})
+        return {
+            "found": True,
+            "student_id": sid,
+            "course_type": row.get("course_type"),
+            "institute_tier": row.get("institute_tier"),
+            "region": row.get("region"),
+            "cgpa": row.get("cgpa"),
+            "internship_months": row.get("internship_months"),
+            "placement_probability": pred.get("placement_probability"),
+            "risk_band": pred.get("risk_band"),
+            "salary_estimate": pred.get("salary_estimate"),
+            "emi_comfort_index": ins.get("emi_comfort_index"),
+            "peer_benchmark": ins.get("peer_benchmark"),
+            "top_drivers": [
+                {"factor": d.get("readable_name"), "impact": d.get("impact_direction"),
+                 "detail": d.get("description")}
+                for d in exp.get("top_drivers", [])
+            ],
+            "recommended_actions": [
+                {"action": a.get("action"), "priority": a.get("priority"), "why": a.get("description")}
+                for a in ins.get("recommended_nba", [])
+            ],
+        }
+
+    elif name == "ingest_students":
+        from student_store import add_records
+        students = inp.get("students") or []
+        if isinstance(students, dict):
+            students = [students]
+        result = add_records(students, persist=True)
+        # Reflect into the live API portfolio (main.mock_db). Lazy import avoids the
+        # circular dependency (main imports the agents at module load time).
+        try:
+            import main as _main
+            if result["records"]:
+                _main.mock_db.extend(result["records"])
+        except Exception:
+            pass
+        return {
+            "added_count": result["added_count"],
+            "added_ids": result["added_ids"],
+            "skipped_existing": result["skipped_existing"],
+            "portfolio_total": result["total"],
+        }
+
     elif name == "estimate_salary_range":
         engine = _get_engine()
         result = engine.estimate_salary(
@@ -383,11 +496,26 @@ def _dispatch(name: str, inp: dict) -> dict:
     elif name == "get_labor_market_data":
         field = inp["field"]
         region = inp["region"]
-        # Synthetic labor market data — replace with NAUKRI/LinkedIn API in production
         import random
         rng = random.Random(hash(f"{field}{region}") % 10000)
-        base_demand = rng.randint(25, 85)
-        yoy = round(rng.uniform(-0.20, 0.15), 3)
+
+        # Prefer real data from market_data.json (refreshed from World Bank +
+        # Google Trends via real_data_fetcher). Fall back to a deterministic
+        # synthetic cell when the field/region isn't covered by live data.
+        real_demand, real_yoy, real_roles = None, None, None
+        try:
+            from real_data_fetcher import get_field_demand
+            cell = get_field_demand(_coarse_field(field), region)
+            if cell and "No live data" not in str(cell.get("notes", "")):
+                real_demand = cell.get("demand_score")
+                trend_str = str(cell.get("trend", "")).replace("%", "").replace("+", "").strip()
+                real_yoy = round(float(trend_str) / 100.0, 3) if trend_str not in ("", "None") else None
+                real_roles = cell.get("top_roles") or None
+        except Exception:
+            pass  # any failure → synthetic fallback below
+
+        base_demand = int(real_demand) if real_demand is not None else rng.randint(25, 85)
+        yoy = real_yoy if real_yoy is not None else round(rng.uniform(-0.20, 0.15), 3)
         return {
             "field": field,
             "region": region,
@@ -395,12 +523,13 @@ def _dispatch(name: str, inp: dict) -> dict:
             "yoy_change": yoy,
             "wow_change": round(rng.uniform(-0.12, 0.08), 3),
             "job_openings_per_graduate": round(rng.uniform(0.8, 4.5), 1),
-            "top_hiring_companies": ["TCS", "Infosys", "Wipro", "HCL"][:rng.randint(1, 4)],
+            "top_hiring_companies": real_roles or ["TCS", "Infosys", "Wipro", "HCL"][:rng.randint(1, 4)],
             "recent_layoff_events": (
                 [{"company": "TechCorp", "count": 1200, "date": "2026-04-15"}]
                 if yoy < -0.10 else []
             ),
             "4week_trend": [base_demand + rng.randint(-5, 5) for _ in range(4)],
+            "data_source": "real:market_data.json" if real_demand is not None else "synthetic",
         }
 
     elif name == "get_adjacent_fields":

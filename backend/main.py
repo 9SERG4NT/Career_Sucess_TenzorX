@@ -27,9 +27,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "agents"))
 from agents.orchestrator import (
     score_student_full,
     score_student_fast,
-    get_career_paths,
-    get_offer_survival,
 )
+# NOTE: orchestrator also exposes get_career_paths / get_offer_survival (LLM-agent
+# variants), but they are intentionally NOT imported here. The live handlers for
+# those routes are the rule-based ones defined later in this file, which match the
+# frontend response shape and need no LLM key. Importing the orchestrator versions
+# under the same names previously shadowed those handlers.
 
 app = FastAPI(
     title="PlacementIQ v2.0 API",
@@ -37,9 +40,21 @@ app = FastAPI(
     description="AI-powered education loan placement risk prediction API for lenders."
 )
 
+# CORS — restrict to known frontend origins. A wildcard "*" combined with
+# allow_credentials=True is rejected by browsers and is insecure, so we pin to
+# explicit origins. Override in deployment via the CORS_ORIGINS env var
+# (comma-separated list).
+_DEFAULT_ORIGINS = (
+    "http://localhost:5173,http://127.0.0.1:5173,"
+    "http://localhost:4173,http://127.0.0.1:4173"
+)
+ALLOWED_ORIGINS = [
+    o.strip() for o in os.getenv("CORS_ORIGINS", _DEFAULT_ORIGINS).split(",") if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -341,16 +356,78 @@ def _recruiter_rationale(r, demand, tier, iqi_s, pipeline, pref_tier):
         pieces.append(f"{r['sector']} demand in this region")
     return " · ".join(pieces)
 
-# Load synthetic student database
+# Load student database via the shared store (single source of truth — the agent
+# tools read the same store, so students uploaded at runtime are visible to the
+# API, the scoring engine, and the chatbot alike).
 try:
-    df_students = pd.read_csv('data/synthetic_students.csv')
-    # Replace NaN with None (JSON null) so serialization doesn't crash
-    df_students = df_students.where(pd.notna(df_students), other=None)
-    mock_db = df_students.to_dict('records')
-    print(f"Loaded {len(mock_db)} student records.")
-except FileNotFoundError:
+    import student_store
+    mock_db = student_store.all_records()
+    print(f"Loaded {len(mock_db)} student records (via student_store).")
+except Exception as e:
     mock_db = []
-    print("WARNING: synthetic_students.csv not found. Run data_generator.py first.")
+    print(f"WARNING: could not load students ({e}). Run data_generator.py first.")
+
+
+# ─── Engine-scored risk index (single source of truth for risk bands) ───────
+# Every lender-facing surface — the watchlist, the portfolio table, the cohort
+# summary, the alert engine, the college "my borrowers" view — reads risk bands
+# from THIS index, which is produced by the real model (engine.score_batch_bands,
+# identical band logic to engine.score_student). No more client-side heuristics.
+# It is built lazily over the whole portfolio (fast, SHAP-free) and refreshed
+# incrementally whenever a record changes: a borrower self-edit, a college status
+# sync, or a new onboarding. That is what makes the data "live + synced".
+_scored_index: dict = {}
+_scored_ready = False
+
+
+def _ensure_scored_index(force: bool = False):
+    global _scored_index, _scored_ready
+    if _scored_ready and not force:
+        return
+    try:
+        _scored_index = engine.score_batch_bands(mock_db)
+    except Exception as e:
+        print(f"WARNING: scored-index build failed ({e}).")
+        _scored_index = {}
+    _scored_ready = True
+
+
+def _rescore_ids(ids):
+    """Refresh the scored index for specific student_ids after a write."""
+    if not _scored_ready:
+        return
+    wanted = set(ids or [])
+    recs = [s for s in mock_db if s.get("student_id") in wanted]
+    if recs:
+        try:
+            _scored_index.update(engine.score_batch_bands(recs))
+        except Exception as e:
+            print(f"WARNING: incremental rescore failed ({e}).")
+
+
+def _refresh_portfolio(changed_ids=None):
+    """Rebuild the in-memory portfolio from the store and refresh scoring.
+
+    Pass `changed_ids` for a cheap incremental rescore; omit it to rebuild the
+    whole index (use after a bulk change)."""
+    global mock_db
+    mock_db = student_store.all_records()
+    if changed_ids is None:
+        _ensure_scored_index(force=True)
+    else:
+        _rescore_ids(changed_ids)
+
+
+def _scored_view(student: dict) -> dict:
+    """Merge a raw student record with its engine-scored band fields."""
+    sc = _scored_index.get(student.get("student_id"), {})
+    return {
+        **student,
+        "risk_band": sc.get("risk_band"),
+        "placement_6m": sc.get("placement_6m"),
+        "expected_salary": sc.get("expected_salary"),
+        "emi_comfort_index": sc.get("emi_comfort_index"),
+    }
 
 
 class StudentData(BaseModel):
@@ -366,10 +443,26 @@ class StudentData(BaseModel):
     field_demand_score: int = Field(default=80, ge=0, le=100)
     macro_climate_index: float = Field(default=0.7, ge=0.0, le=1.0)
     monthly_emi: int = Field(default=15000, ge=0)
+    active_backlogs: int = Field(default=0, ge=0, le=20)
 
 
 class InterventionRequest(BaseModel):
     intervention_name: str
+
+
+class StudentUpdate(BaseModel):
+    """Editable borrower attributes. Any field left None is untouched. Posting a
+    change re-scores the student immediately (real-time risk re-flagging)."""
+    cgpa: float | None = Field(default=None, ge=0.0, le=10.0)
+    internship_months: int | None = Field(default=None, ge=0)
+    iqi: float | None = Field(default=None, ge=0.0, le=1.0)
+    behavioral_activity_score: int | None = Field(default=None, ge=0, le=100)
+    field_demand_score: int | None = Field(default=None, ge=0, le=100)
+    monthly_emi: int | None = Field(default=None, ge=0)
+    active_backlogs: int | None = Field(default=None, ge=0, le=20)
+    employer_tier: str | None = None
+    institute_tier: str | None = None
+    institute_name: str | None = None
 
 
 # ─── Endpoints ─────────────────────────────────────────────────────────────────
@@ -393,21 +486,401 @@ async def score_student_fast_endpoint(request: StudentData):
     return sanitize(result)
 
 
-@app.get("/api/v1/student/{student_id}/career-paths")
-async def career_paths_endpoint(student_id: str):
-    """Alternate Career Path Engine — agent-driven."""
-    # Fetch student data from your DB/CSV
-    student_context = _fetch_student_context(student_id)
-    result = get_career_paths(student_id, student_context)
+# ─── Conversational Assistant (role-scoped RAG + tools) ─────────────────────
+
+class ChatMessage(BaseModel):
+    role: str            # "user" | "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    role: str = "public"            # caller scope: public | student | admin
+    student_id: str | None = None   # required for the student scope
+    messages: list[ChatMessage]
+
+
+def _student_chat_context(student_id: str):
+    """Compact, score-grounded context string for the student coach. Returns None
+    if the student isn't on file (the bot then degrades gracefully)."""
+    student = next((s for s in mock_db if s.get("student_id") == student_id), None)
+    if not student:
+        return None
+    scoring_input = {
+        "student_id": student.get("student_id"),
+        "course_type": student.get("course_type", "Engineering"),
+        "institute_tier": student.get("institute_tier", "B"),
+        "region": student.get("region", "Bengaluru"),
+        "cgpa": float(student.get("cgpa", 7.0) or 7.0),
+        "internship_months": int(student.get("internship_months", 0) or 0),
+        "employer_tier": student.get("employer_tier", "Startup"),
+        "iqi": float(student.get("iqi", 0.3) or 0.3),
+        "behavioral_activity_score": int(student.get("behavioral_activity_score", 50) or 50),
+        "field_demand_score": float(student.get("field_demand_score", 65) or 65),
+        "macro_climate_index": float(student.get("macro_climate_index", 0.7) or 0.7),
+        "monthly_emi": int(student.get("monthly_emi", 15000) or 15000),
+        "active_backlogs": int(student.get("active_backlogs", 0) or 0),
+    }
+    try:
+        sc = engine.score_student(scoring_input)
+        pred, ins, exp = sc["prediction"], sc["insights"], sc["explainability"]
+        probs = pred["placement_probability"]
+        drivers = "; ".join(
+            f"{d['readable_name']} ({d['impact_direction']})" for d in exp.get("top_drivers", [])
+        )
+        return (
+            f"student_id={student_id}; course={scoring_input['course_type']}; "
+            f"institute_tier={scoring_input['institute_tier']}; region={scoring_input['region']}; "
+            f"cgpa={scoring_input['cgpa']}; internship_months={scoring_input['internship_months']}; "
+            f"placement_prob 3m/6m/12m={probs['3m']}/{probs['6m']}/{probs['12m']}; "
+            f"risk_band={pred['risk_band']}; expected_salary_inr={pred['expected_salary']}; "
+            f"emi_comfort_index={ins['emi_comfort_index']}; top_risk_drivers=[{drivers}]"
+        )
+    except Exception as e:
+        return f"student_id={student_id}; course={scoring_input['course_type']}; (scoring unavailable: {e})"
+
+
+@app.post("/api/v1/chat")
+async def chat(req: ChatRequest):
+    """Role-scoped conversational assistant.
+    - public  : product Q&A (RAG over docs), no data access
+    - student : personal coach LOCKED to req.student_id (cannot see other students)
+    - admin   : portfolio copilot with full tool access
+    Scope is enforced server-side via tool gating + student-id locking.
+    """
+    from agents.chat_agent import chat_reply
+
+    role = (req.role or "public").lower()
+    student_context = None
+    portfolio_summary = None
+
+    if role == "student":
+        if not req.student_id:
+            raise HTTPException(status_code=400, detail="student_id is required for the student scope")
+        student_context = _student_chat_context(req.student_id)
+    elif role == "admin":
+        portfolio_summary = f"total_students_on_file={len(mock_db)}; model_variant={engine.variant}"
+
+    result = chat_reply(
+        role=role,
+        student_id=req.student_id,
+        messages=[m.model_dump() for m in req.messages],
+        student_context=student_context,
+        portfolio_summary=portfolio_summary,
+    )
     return sanitize(result)
 
 
-@app.get("/api/v1/student/{student_id}/offer-survival")
-async def offer_survival_endpoint(student_id: str, company: str):
-    """Offer Survival Score — agent-driven company health assessment."""
-    result = get_offer_survival(student_id, company)
-    return sanitize(result)
+# ─── Auth & Accounts (real login + lender-issued borrower credentials) ──────
 
+class LoginReq(BaseModel):
+    username: str
+    password: str
+
+
+class OnboardBorrowerReq(BaseModel):
+    """Lender onboards a borrower: creates a real student record AND issues login
+    credentials bound to it. The borrower then maintains this record themselves."""
+    name: str
+    course_type: str = "Engineering"
+    institute_tier: str = "B"
+    institute_name: str | None = None
+    region: str = "Bengaluru"
+    cgpa: float = Field(default=7.0, ge=0.0, le=10.0)
+    internship_months: int = Field(default=0, ge=0)
+    employer_tier: str = "Startup"
+    monthly_emi: int = Field(default=12000, ge=0)
+    active_backlogs: int = Field(default=0, ge=0, le=20)
+
+
+@app.post("/api/v1/auth/login")
+async def auth_login(req: LoginReq):
+    """Validate credentials against the accounts store. Returns the bound account
+    (role + student_id/institute) so the frontend knows which data this login owns."""
+    import accounts_store
+    acct = accounts_store.authenticate(req.username, req.password)
+    if not acct:
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+    return sanitize({"ok": True, "user": acct})
+
+
+@app.get("/api/v1/admin/accounts")
+async def list_accounts_endpoint(role: str = None):
+    """ADMIN: list issued logins (passwords never returned)."""
+    import accounts_store
+    return sanitize({"accounts": accounts_store.list_accounts(role)})
+
+
+@app.post("/api/v1/admin/accounts/{username}/reset-password")
+async def reset_password(username: str):
+    """ADMIN: generate a new temp password for an existing account and return it
+    once (same one-time reveal pattern as onboarding)."""
+    import accounts_store
+    acct = accounts_store.get(username)
+    if not acct:
+        raise HTTPException(status_code=404, detail=f"Account '{username}' not found.")
+    new_pwd = accounts_store._temp_password()
+    accounts_store.set_password(username, new_pwd)
+    return sanitize({"username": username, "new_password": new_pwd,
+                     "message": "Password reset. Share the new password with the borrower — it cannot be retrieved again after this response."})
+
+
+@app.post("/api/v1/admin/accounts")
+async def onboard_borrower(req: OnboardBorrowerReq):
+    """ADMIN: onboard a borrower. Creates a persisted STU-2026 record (grounded in
+    real field-demand / macro data), issues bound credentials, scores it, and
+    returns the one-time username/password for the lender to hand over."""
+    import accounts_store
+
+    # Derive the non-form model features deterministically (same spirit as the
+    # loan pre-screen) so the new record scores sensibly from day one.
+    h = _stable_hash(req.name, req.course_type, req.cgpa)
+    iqi = round(min(0.45, 0.10 + (req.cgpa - 4) / 6 * 0.30 + min(req.internship_months, 6) / 6 * 0.10), 3)
+    behavior = min(100, int(40 + (req.cgpa - 4) / 6 * 35 + min(req.internship_months, 6) / 6 * 25 + (h % 11)))
+    try:
+        field_demand = int(get_field_demand(req.course_type, req.region).get("demand_score", 65))
+    except Exception:
+        field_demand = 65
+    try:
+        macro = float(get_macro_climate_index())
+    except Exception:
+        macro = 0.7
+
+    new_rec = {
+        "course_type": req.course_type, "institute_tier": req.institute_tier,
+        "region": req.region, "cgpa": req.cgpa, "internship_months": req.internship_months,
+        "employer_tier": req.employer_tier, "iqi": iqi, "behavioral_activity_score": behavior,
+        "field_demand_score": field_demand, "macro_climate_index": macro,
+        "monthly_emi": req.monthly_emi, "active_backlogs": req.active_backlogs,
+        "institute_name": req.institute_name or "",
+        "placed_3m": 0, "placed_6m": 0, "placed_12m": 0, "actual_salary": 0,
+    }
+    result = student_store.add_records([new_rec], persist=True)
+    if not result["added_ids"]:
+        raise HTTPException(status_code=500, detail="Could not create student record.")
+    sid = result["added_ids"][0]
+    _refresh_portfolio([sid])
+
+    acct = accounts_store.create_account(
+        "student", req.name, student_id=sid, institute=req.institute_name,
+    )
+
+    rec = student_store.find(sid)
+    try:
+        score = engine.score_student(dict(rec))
+        pred = score["prediction"]
+    except Exception:
+        pred = {}
+
+    return sanitize({
+        "student_id": sid,
+        "credentials": {"username": acct["username"], "password": acct["password"]},
+        "account": {k: v for k, v in acct.items() if k != "password"},
+        "risk_band": pred.get("risk_band"),
+        "placement_6m": (pred.get("placement_probability") or {}).get("6m"),
+        "message": "Borrower onboarded. Share these credentials once — the borrower "
+                   "should change the password and keep their academics up to date.",
+    })
+
+
+# ─── Admin: bulk student upload / onboarding ────────────────────────────────
+
+class StudentUploadRequest(BaseModel):
+    students: list[dict] | None = None   # structured records
+    raw_text: str | None = None          # pasted CSV / JSON text
+    format: str | None = None            # optional hint: "csv" | "json"
+
+
+@app.post("/api/v1/admin/students/upload")
+async def upload_students(req: StudentUploadRequest):
+    """ADMIN: onboard students from a structured `students` list OR pasted
+    `raw_text` (auto-detects JSON array or CSV). Appends to the shared store +
+    live portfolio, persists to CSV, and returns quick risk scores for a preview.
+    """
+    import student_store
+    import io
+    import json as _json
+
+    records = []
+    if req.students:
+        records = req.students
+    elif req.raw_text and req.raw_text.strip():
+        txt = req.raw_text.strip()
+        parsed = None
+        if txt[0] in "[{":
+            try:
+                parsed = _json.loads(txt)
+            except Exception:
+                parsed = None
+        if parsed is None:
+            try:
+                parsed = pd.read_csv(io.StringIO(txt)).to_dict("records")
+            except Exception:
+                parsed = None
+        if parsed is None:
+            raise HTTPException(status_code=400, detail="Could not parse data — send a JSON array, CSV text, or a `students` list.")
+        records = parsed if isinstance(parsed, list) else [parsed]
+    else:
+        raise HTTPException(status_code=400, detail="Provide `students` (list) or `raw_text` (CSV/JSON).")
+
+    result = student_store.add_records(records, persist=True)
+    if result["records"]:
+        _refresh_portfolio(result["added_ids"])  # rebuild portfolio + score the new rows
+
+    scored = []
+    for rec in result["records"][:25]:
+        try:
+            s = engine.score_student(rec)
+            scored.append({
+                "student_id": rec["student_id"],
+                "risk_band": s["prediction"]["risk_band"],
+                "placement_6m": s["prediction"]["placement_probability"]["6m"],
+            })
+        except Exception:
+            pass
+
+    return sanitize({
+        "added_count": result["added_count"],
+        "added_ids": result["added_ids"],
+        "skipped_existing": result["skipped_existing"],
+        "portfolio_total": result["total"],
+        "scored_preview": scored,
+    })
+
+
+# ─── College / Placement-Cell portal ────────────────────────────────────────
+
+class CollegeProfileReq(BaseModel):
+    institute_name: str
+    institute_tier: str | None = None
+    accreditation: str | None = None
+
+
+class CollegeProgramsReq(BaseModel):
+    institute_name: str
+    programs: list[dict] = []
+
+
+class CollegeRecruitersReq(BaseModel):
+    institute_name: str
+    recruiters: list[dict] = []
+
+
+class CollegeStudentStatusReq(BaseModel):
+    institute_name: str
+    students: list[dict] = []
+
+
+@app.post("/api/v1/college/profile")
+async def college_profile(req: CollegeProfileReq):
+    import college_store
+    return sanitize(college_store.upsert_profile(req.institute_name, req.institute_tier, req.accreditation))
+
+
+@app.post("/api/v1/college/programs")
+async def college_programs(req: CollegeProgramsReq):
+    import college_store
+    return sanitize(college_store.set_programs(req.institute_name, req.programs))
+
+
+@app.post("/api/v1/college/recruiters")
+async def college_recruiters(req: CollegeRecruitersReq):
+    import college_store
+    return sanitize(college_store.set_recruiters(req.institute_name, req.recruiters))
+
+
+@app.post("/api/v1/college/student-status")
+async def college_student_status(req: CollegeStudentStatusReq):
+    """College posts per-student placement status. Beyond storing it for the
+    college's own analytics, we SYNC each row that matches a real borrower back
+    onto the lender's portfolio: a placed/offer/joined status flips the borrower's
+    placement flags (+ salary) and tags them to this institute, then re-scores —
+    so the lender dashboard reflects the college's update with no detached data.
+    """
+    import college_store
+    rec = college_store.set_student_status(req.institute_name, req.students)
+
+    synced = []
+    for s in (req.students or []):
+        sid = str(s.get("student_id", "")).strip()
+        if not sid or student_store.find(sid) is None:
+            continue
+        status = str(s.get("status", "")).lower()
+        updates = {"institute_name": req.institute_name}
+        if any(w in status for w in ("plac", "offer", "join", "select")):
+            updates["placed_6m"] = 1
+            updates["placed_12m"] = 1
+            if s.get("offered_salary"):
+                updates["actual_salary"] = s.get("offered_salary")
+        student_store.update_record(sid, updates, persist=True)
+        synced.append(sid)
+
+    if synced:
+        _refresh_portfolio(synced)
+        # Auto-verify placement in the verification layer — the college acting as
+        # the placement cell is the authoritative source for placed status.
+        import verification_store as _vs
+        for sid in synced:
+            _vs.verify_placement(sid, req.institute_name)
+
+    return sanitize({**rec, "synced_to_portfolio": synced, "synced_count": len(synced)})
+
+
+@app.get("/api/v1/college/{institute_name}/borrowers")
+async def college_borrowers(institute_name: str):
+    """Lender-scored borrowers tagged to this institute — lets the College portal
+    show the SAME engine risk bands the lender sees for its own students."""
+    _ensure_scored_index()
+    rows = [s for s in mock_db if (s.get("institute_name") or "") == institute_name]
+    fields = ["student_id", "course_type", "institute_tier", "region", "cgpa",
+              "internship_months", "monthly_emi", "active_backlogs", "placed_6m", "actual_salary"]
+    counts = {"LOW": 0, "MEDIUM": 0, "HIGH": 0}
+    out = []
+    for s in rows:
+        sc = _scored_index.get(s.get("student_id"), {})
+        band = sc.get("risk_band")
+        if band in counts:
+            counts[band] += 1
+        out.append({**{k: s.get(k) for k in fields},
+                    "risk_band": band, "placement_6m": sc.get("placement_6m"),
+                    "expected_salary": sc.get("expected_salary")})
+    # Riskiest first.
+    order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    out.sort(key=lambda r: order.get(r.get("risk_band"), 3))
+    return sanitize({"institute_name": institute_name, "total": len(rows),
+                     "risk_counts": counts, "borrowers": out[:500]})
+
+
+@app.get("/api/v1/colleges")
+async def list_colleges():
+    """Lender-consumable: all institute records contributed via the College portal."""
+    import college_store
+    return sanitize({"colleges": college_store.list_institutes()})
+
+
+@app.get("/api/v1/college/{institute_name}")
+async def get_college(institute_name: str):
+    import college_store
+    rec = college_store.get_institute(institute_name)
+    if not rec:
+        # Empty scaffold so the portal can start a fresh institute
+        return sanitize({"institute_name": institute_name, "institute_tier": None,
+                         "accreditation": None, "programs": [], "recruiters": [],
+                         "student_status": [], "new": True})
+    return sanitize(rec)
+
+
+@app.get("/api/v1/college/{institute_name}/analytics")
+async def get_college_analytics(institute_name: str):
+    import college_store
+    return sanitize(college_store.analytics(institute_name))
+
+
+# NOTE: GET /api/v1/student/{id}/career-paths and /offer-survival are defined
+# later in this file (the rule-based handlers `get_career_paths` and
+# `get_offer_survival`). Two thin agent-wrapper endpoints used to live here, but
+# they shadowed the orchestrator imports and returned an un-awaited coroutine —
+# which crashed FastAPI serialization with "'coroutine' object is not iterable".
+# The canonical handlers below match the frontend shape and need no LLM key.
 
 # Note: /api/v1/shocks/active is defined later (around line ~550) and uses
 # real market data from real_data_fetcher (no LLM key required).
@@ -445,12 +918,76 @@ def _get_portfolio_segments() -> list:
 
 
 @app.get("/api/v1/students")
-async def get_students(limit: int = 50):
-    """Returns a random sample of students for the dashboard watchlist."""
+async def get_students(
+    limit: int = 25,
+    offset: int = 0,
+    sort: str = "risk",          # risk | cgpa_desc | cgpa_asc | student_id
+    q: str = None,               # free-text search
+    course: str = None,
+    region: str = None,
+    tier: str = None,
+    status: str = None,          # placed_6m | placed_12m | unplaced
+):
+    """Server-side filtered, sorted, and paginated student list. Every row
+    carries its real engine band (risk_band, placement_6m). Returns
+    {students:[...], total:N, offset:N, limit:N}."""
     if not mock_db:
-        return []
-    sample = random.sample(mock_db, min(limit, len(mock_db)))
-    return sanitize(sample)
+        return sanitize({"students": [], "total": 0, "offset": offset, "limit": limit})
+    _ensure_scored_index()
+
+    pool = mock_db
+
+    # ── Server-side filters ──
+    if course and course != "ALL":
+        pool = [s for s in pool if s.get("course_type") == course]
+    if region and region != "ALL":
+        pool = [s for s in pool if s.get("region") == region]
+    if tier and tier != "ALL":
+        pool = [s for s in pool if s.get("institute_tier") == tier]
+    if status == "placed_6m":
+        pool = [s for s in pool if s.get("placed_6m") == 1]
+    elif status == "placed_12m":
+        pool = [s for s in pool if s.get("placed_12m") == 1 and s.get("placed_6m") == 0]
+    elif status == "unplaced":
+        pool = [s for s in pool if s.get("placed_12m") == 0]
+    if q and q.strip():
+        ql = q.strip().lower()
+        pool = [s for s in pool if
+                ql in (s.get("student_id") or "").lower() or
+                ql in (s.get("course_type") or "").lower() or
+                ql in (s.get("region") or "").lower()]
+
+    total = len(pool)
+
+    # ── Sort ──
+    band_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    if sort == "risk":
+        pool = sorted(pool, key=lambda s: band_order.get(
+            _scored_index.get(s.get("student_id"), {}).get("risk_band"), 3))
+    elif sort == "cgpa_desc":
+        pool = sorted(pool, key=lambda s: float(s.get("cgpa") or 0), reverse=True)
+    elif sort == "cgpa_asc":
+        pool = sorted(pool, key=lambda s: float(s.get("cgpa") or 0))
+    elif sort == "student_id":
+        pool = sorted(pool, key=lambda s: s.get("student_id") or "")
+
+    # ── Risk counts over the full filtered set (for summary cards) ──
+    risk_counts = {"LOW": 0, "MEDIUM": 0, "HIGH": 0}
+    for s in pool:
+        b = _scored_index.get(s.get("student_id"), {}).get("risk_band")
+        if b in risk_counts:
+            risk_counts[b] += 1
+
+    # ── Paginate ──
+    page = pool[offset: offset + limit]
+
+    return sanitize({
+        "students": [_scored_view(s) for s in page],
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "risk_counts": risk_counts,
+    })
 
 
 @app.get("/api/v1/cohort/summary")
@@ -461,19 +998,20 @@ async def get_cohort_summary():
 
     df = pd.DataFrame(mock_db)
 
-    high_risk = int(len(df[(df['placed_6m'] == 0) & (df['cgpa'] < 6.0)]))
-    low_risk = int(len(df[df['placed_6m'] == 1]))
-    med_risk = int(len(df) - high_risk - low_risk)
+    # Risk distribution comes from the REAL engine bands (same logic as the
+    # single-student score / watchlist / alerts), not a cgpa heuristic.
+    _ensure_scored_index()
+    bands = {"LOW": 0, "MEDIUM": 0, "HIGH": 0}
+    for s in mock_db:
+        b = _scored_index.get(s.get("student_id"), {}).get("risk_band")
+        if b in bands:
+            bands[b] += 1
 
     result = {
         "total_students": int(len(df)),
         "avg_cgpa": round(float(df['cgpa'].mean()), 2),
         "avg_emi": int(df['monthly_emi'].mean()),
-        "risk_distribution": {
-            "LOW": low_risk,
-            "MEDIUM": med_risk,
-            "HIGH": high_risk
-        },
+        "risk_distribution": bands,
         "placement_velocity": {
             "3m": round(float(df['placed_3m'].mean() * 100), 1),
             "6m": round(float(df['placed_6m'].mean() * 100), 1),
@@ -500,14 +1038,237 @@ async def get_student(student_id: str):
 
     try:
         score = engine.score_student(dict(student))
-        # Merge derived signals into the profile so the frontend can render them
         enriched_profile = {**dict(student), **derive_student_signals(dict(student))}
+        import verification_store as _vs
         return sanitize({
             "profile": enriched_profile,
             "analysis": score,
+            "verification": _vs.full_status(student_id),
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Scoring error: {str(e)}")
+
+
+@app.put("/api/v1/student/{student_id}")
+async def update_student(student_id: str, req: StudentUpdate):
+    """Real-time update path: persist editable attributes for an existing student
+    and immediately re-score so the risk band reflects the change.
+
+    Example: a borrower picks up an active backlog this semester → PUT
+    {"active_backlogs": 2} → the response shows the student re-flagged HIGH.
+    """
+    global mock_db
+    import student_store
+
+    updates = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update.")
+
+    rec = student_store.update_record(student_id, updates)
+    if rec is None:
+        raise HTTPException(status_code=404, detail=f"Student '{student_id}' not found")
+
+    # Keep the in-memory portfolio AND the engine-scored band index in sync so the
+    # lender's watchlist / portfolio / alerts reflect this edit immediately.
+    _refresh_portfolio([student_id])
+
+    try:
+        score = engine.score_student(dict(rec))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Re-scoring error: {str(e)}")
+
+    enriched_profile = {**dict(rec), **derive_student_signals(dict(rec))}
+    return sanitize({
+        "profile": enriched_profile,
+        "analysis": score,
+        "updated_fields": list(updates.keys()),
+        "rescored": True,
+    })
+
+
+# ─── Verification Layer (anti-fraud / self-report bias) ─────────────────────
+
+class AcademicVerifyReq(BaseModel):
+    abc_id:        str | None = None
+    digilocker_id: str | None = None
+
+class CertVerifyReq(BaseModel):
+    cert_index:    int
+    cert_name:     str = ""
+    credential_id: str | None = None
+    credential_url: str | None = None
+
+class InternshipVerifyReq(BaseModel):
+    internship_index: int
+    company_name:     str
+    document_ref:     str           # "Offer letter ref: OL-XYZ123 / Completion cert: CC-ABC456"
+    contact_email:    str | None = None
+
+class ApproveInternshipReq(BaseModel):
+    internship_index: int
+    approved: bool = True
+
+
+@app.get("/api/v1/student/{student_id}/verification")
+async def get_verification(student_id: str):
+    """Returns the full verification record + confidence score for a student."""
+    import verification_store
+    student = next((s for s in mock_db if s.get("student_id") == student_id), None)
+    if not student:
+        raise HTTPException(status_code=404, detail=f"Student '{student_id}' not found")
+    return sanitize(verification_store.full_status(student_id))
+
+
+@app.post("/api/v1/student/{student_id}/verify/academic")
+async def verify_academic(student_id: str, req: AcademicVerifyReq):
+    """Submit ABC ID and/or DigiLocker ID for academic verification."""
+    import verification_store
+    student = next((s for s in mock_db if s.get("student_id") == student_id), None)
+    if not student:
+        raise HTTPException(status_code=404, detail=f"Student '{student_id}' not found")
+    reported_cgpa = float(student.get("cgpa") or 0)
+    result = verification_store.verify_academic(
+        student_id, abc_id=req.abc_id, digilocker_id=req.digilocker_id,
+        reported_cgpa=reported_cgpa,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return sanitize({**result, "confidence": verification_store.compute_confidence(result)})
+
+
+@app.post("/api/v1/student/{student_id}/verify/certification")
+async def verify_certification(student_id: str, req: CertVerifyReq):
+    """Verify a certification via credential ID + URL. Auto-verifies known issuers."""
+    import verification_store
+    student = next((s for s in mock_db if s.get("student_id") == student_id), None)
+    if not student:
+        raise HTTPException(status_code=404, detail=f"Student '{student_id}' not found")
+    result = verification_store.verify_certification(
+        student_id, req.cert_index, req.cert_name,
+        credential_id=req.credential_id, credential_url=req.credential_url,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return sanitize({**result, "confidence": verification_store.compute_confidence(result)})
+
+
+@app.post("/api/v1/student/{student_id}/verify/internship")
+async def verify_internship(student_id: str, req: InternshipVerifyReq):
+    """Submit internship proof (offer letter ref + completion cert ref) → PENDING."""
+    import verification_store
+    student = next((s for s in mock_db if s.get("student_id") == student_id), None)
+    if not student:
+        raise HTTPException(status_code=404, detail=f"Student '{student_id}' not found")
+    result = verification_store.verify_internship(
+        student_id, req.internship_index, req.company_name,
+        req.document_ref, req.contact_email,
+    )
+    return sanitize({**result, "confidence": verification_store.compute_confidence(result)})
+
+
+@app.post("/api/v1/admin/verify/internship/{student_id}")
+async def approve_internship(student_id: str, req: ApproveInternshipReq, rm_id: str = "admin"):
+    """ADMIN/COLLEGE: approve or reject a pending internship verification."""
+    import verification_store
+    result = verification_store.approve_internship(
+        student_id, req.internship_index, req.approved, approved_by=rm_id,
+    )
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return sanitize({**result, "confidence": verification_store.compute_confidence(result)})
+
+
+# ─── Rich student profile (PRD Datasets 3-5, Section 7.A) ───────────────────
+
+@app.get("/api/v1/student/{student_id}/full-profile")
+async def get_full_profile(student_id: str):
+    """Returns the base scored record + the rich PRD profile (personal, academic,
+    employability, placement_activity) merged into one response.  This is the
+    single endpoint the student portal My-Profile page reads from."""
+    import student_profile_store
+
+    student = next((s for s in mock_db if s.get("student_id") == student_id), None)
+    if not student:
+        raise HTTPException(status_code=404, detail=f"Student '{student_id}' not found")
+
+    rich = student_profile_store.get_profile(student_id)
+
+    # Back-fill rich profile from the base record if the student hasn't filled
+    # those fields yet (first visit after onboarding).
+    if not rich["academic"].get("cgpa"):
+        rich["academic"]["cgpa"] = student.get("cgpa")
+    if not rich["academic"].get("backlogs_count"):
+        rich["academic"]["backlogs_count"] = int(student.get("active_backlogs", 0) or 0)
+    if not rich["employability"]["internships"]:
+        months = int(student.get("internship_months", 0) or 0)
+        if months:
+            rich["employability"]["internships"] = [{
+                "company_name": "Prior internship", "role": "", "duration_months": months,
+                "tier": student.get("employer_tier", "Startup"), "performance_score": None, "description": "",
+            }]
+
+    try:
+        score = engine.score_student(dict(student))
+    except Exception:
+        score = {}
+
+    import verification_store as _vs
+    verification = _vs.full_status(student_id)
+
+    enriched = {**dict(student), **derive_student_signals(dict(student))}
+    return sanitize({"profile": enriched, "rich_profile": rich, "analysis": score,
+                     "verification": verification})
+
+
+@app.put("/api/v1/student/{student_id}/full-profile")
+async def update_full_profile(student_id: str, payload: dict = {}):
+    """Update any section(s) of the rich profile and automatically sync
+    scoring-sensitive fields (cgpa, backlogs, internship_months, iqi,
+    employer_tier, placement flags) back to the CSV store for an immediate
+    live re-score — the same path the student's My-Academics save uses."""
+    import student_profile_store
+
+    student = next((s for s in mock_db if s.get("student_id") == student_id), None)
+    if not student:
+        raise HTTPException(status_code=404, detail=f"Student '{student_id}' not found")
+
+    rich = student_profile_store.update_profile(student_id, payload)
+    sync = student_profile_store.derive_scoring_sync(rich)
+
+    # Certifications count → behavioral_activity_score boost (capped at 95)
+    cert_count = sync.pop("_cert_count_hint", 0)
+    if cert_count > 0:
+        base_act = int(student.get("behavioral_activity_score", 50) or 50)
+        sync["behavioral_activity_score"] = min(95, base_act + cert_count * 5)
+
+    # Write scoring-relevant fields back to the CSV store and refresh the index.
+    rec = None
+    if sync:
+        rec = student_store.update_record(student_id, sync)
+        _refresh_portfolio([student_id])
+        # If CGPA was updated, run the ABC discrepancy check. A student who
+        # verified their ABC ID at CGPA=7.5 then later edits to 9.2 will be
+        # flagged — this is the anti-inflation guard, not dummy logic.
+        if "cgpa" in sync:
+            import verification_store as _vs_chk
+            _vs_chk.check_cgpa_discrepancy(student_id, sync["cgpa"])
+
+    if rec is None:
+        rec = student
+
+    try:
+        score = engine.score_student(dict(rec))
+    except Exception:
+        score = {}
+
+    enriched = {**dict(rec), **derive_student_signals(dict(rec))}
+    return sanitize({
+        "profile": enriched,
+        "rich_profile": rich,
+        "analysis": score,
+        "synced_to_scoring": list(sync.keys()),
+        "rescored": bool(sync),
+    })
 
 
 @app.get("/api/v1/student/{student_id}/recruiter-matches")
@@ -791,40 +1552,49 @@ async def get_active_alerts():
     if not mock_db:
         return {"alerts": [], "total": 0}
 
+    # Drive alerts off the same engine risk band the dashboard shows, so the two
+    # never disagree. Severity is then sharpened by the concrete stress signals
+    # (active backlogs, EMI comfort, CGPA).
+    _ensure_scored_index()
     alerts = []
     for s in mock_db:
-        placed = s.get('placed_6m')
+        sid = s.get("student_id")
+        sc = _scored_index.get(sid, {})
+        band = sc.get("risk_band")
+        if band not in ("HIGH", "MEDIUM"):
+            continue
+
         cgpa = s.get('cgpa', 10)
-        emi = s.get('monthly_emi', 0)
-        salary = s.get('actual_salary', 0)
+        backlogs = int(s.get('active_backlogs', 0) or 0)
+        emi_comfort = sc.get("emi_comfort_index", 99)
+        prob6 = sc.get("placement_6m") or 0
 
-        severity = None
-        reason = None
-
-        # Critical: unplaced + low CGPA
-        if placed == 0 and (cgpa or 10) < 6.0:
-            severity = "CRITICAL"
-            reason = f"Unplaced with CGPA {cgpa} — high default risk"
-        # High: EMI stress (salary < EMI if placed)
-        elif placed == 1 and salary and emi and salary > 0:
-            monthly_sal = salary / 12
-            if monthly_sal < emi:
-                severity = "HIGH"
-                reason = f"Underemployment — monthly salary ₹{int(monthly_sal):,} < EMI ₹{emi:,}"
-        # Medium: unplaced but moderate CGPA
-        elif placed == 0 and (cgpa or 10) < 7.0:
+        if band == "HIGH":
+            severity = "CRITICAL" if (backlogs >= 2 or (emi_comfort != 99 and emi_comfort < 1.0)) else "HIGH"
+        else:
             severity = "MEDIUM"
-            reason = f"Unplaced with CGPA {cgpa} — approaching high risk"
 
-        if severity and len(alerts) < 100:  # Cap at 100 for performance
+        reasons = []
+        if backlogs > 0:
+            reasons.append(f"{backlogs} active backlog(s) this semester")
+        if (cgpa or 10) < 6.0:
+            reasons.append(f"CGPA {cgpa}")
+        if emi_comfort != 99 and emi_comfort < 1.2:
+            reasons.append(f"EMI comfort {emi_comfort}× (salary < EMI)")
+        if not reasons:
+            reasons.append(f"Model places 6m chance at {int(prob6 * 100)}% — {band} band")
+        reason = " · ".join(reasons)
+
+        if len(alerts) < 200:
             alerts.append({
-                "student_id": s.get("student_id"),
+                "student_id": sid,
                 "severity": severity,
                 "reason": reason,
                 "course_type": s.get("course_type"),
                 "institute_tier": s.get("institute_tier"),
                 "region": s.get("region"),
-                "recommended_action": "Assign Case Manager" if severity == "CRITICAL" else "Schedule RM Check-in"
+                "placement_6m": prob6,
+                "recommended_action": "Assign Case Manager" if severity == "CRITICAL" else "Schedule RM Check-in",
             })
 
     # Sort by severity

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, ArrowRight, GraduationCap, Banknote, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import axios from 'axios';
+import { ArrowLeft, ArrowRight, GraduationCap, Banknote, Building2, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE } from '../App';
 import { BrandMark } from '../components/AppShell';
 
 const ROLES = [
@@ -18,17 +20,29 @@ const ROLES = [
     sub: 'Portfolio risk, drift monitor, intervention ROI.',
     icon: Banknote,
   },
+  {
+    id: 'college',
+    label: 'College / Placement Cell',
+    sub: 'Upload placement data & recruiters; see institute analytics.',
+    icon: Building2,
+  },
 ];
 
-// Hardcoded demo credentials (prototype only — no real auth)
+const ROLE_LABEL = { admin: 'Lender', college: 'College', student: 'Borrower' };
+
+// Demo credentials — these mirror the seeded backend accounts. Login goes through
+// the real /api/v1/auth/login endpoint; this map is only the offline fallback (and
+// the hint text) used when the backend is unreachable.
 const CREDS = {
-  admin:   { username: 'admin',   password: '123', displayName: 'Lender Admin',   email: 'admin@poonawalla.demo' },
-  student: { username: 'student', password: '123', displayName: 'Demo Borrower', email: 'student@poonawalla.demo' },
+  admin:   { username: 'admin',   password: '123', displayName: 'Lender Admin',    email: 'admin@poonawalla.demo' },
+  student: { username: 'student', password: '123', displayName: 'Demo Borrower',   email: 'student@poonawalla.demo', studentId: 'STU-2026-00001', institute: 'PF Demo Institute' },
+  college: { username: 'college', password: '123', displayName: 'Demo Placement Cell', email: 'college@poonawalla.demo', institute: 'PF Demo Institute' },
 };
 
 export default function SignIn() {
   const [searchParams] = useSearchParams();
-  const initialRole = searchParams.get('role') === 'admin' ? 'admin' : 'student';
+  const roleParam = searchParams.get('role');
+  const initialRole = ['admin', 'college', 'student'].includes(roleParam) ? roleParam : 'student';
 
   const [role, setRole] = useState(initialRole);
   const [username, setUsername] = useState('');
@@ -42,29 +56,64 @@ export default function SignIn() {
 
   useEffect(() => {
     const fromParam = searchParams.get('role');
-    if (fromParam === 'admin' || fromParam === 'student') setRole(fromParam);
+    if (['admin', 'college', 'student'].includes(fromParam)) setRole(fromParam);
   }, [searchParams]);
 
   // Reset error when user edits
   useEffect(() => { if (error) setError(null); }, [username, password, role]); // eslint-disable-line
 
-  const handleSubmit = (e) => {
+  const redirect = (u) => {
+    setTimeout(() => {
+      if (u.role === 'admin') navigate('/dashboard', { replace: true });
+      else if (u.role === 'college') navigate('/college/dashboard', { replace: true });
+      // A bound borrower lands on their dashboard (their record exists); a brand-new
+      // demo borrower with no application still starts at /me/apply.
+      else navigate(u.studentId ? '/me/dashboard' : '/me/apply', { replace: true });
+    }, 200);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
 
-    const expected = CREDS[role];
-    if (username.trim().toLowerCase() !== expected.username || password !== expected.password) {
-      setSubmitting(false);
-      setError(`Wrong credentials for ${role === 'admin' ? 'Lender' : 'Borrower'}. Try ${expected.username} / ${expected.password}.`);
-      return;
+    try {
+      // Real authentication against the backend accounts store.
+      const res = await axios.post(`${API_BASE}/api/v1/auth/login`, {
+        username: username.trim(), password,
+      });
+      const acct = res.data?.user || {};
+      if (acct.role && acct.role !== role) {
+        setSubmitting(false);
+        setError(`Those credentials are for the ${ROLE_LABEL[acct.role] || acct.role} portal — switch the role above to sign in.`);
+        return;
+      }
+      const u = signin({
+        name: acct.name, email: acct.email, role: acct.role || role,
+        institute: acct.institute, studentId: acct.student_id,
+      });
+      redirect(u);
+    } catch (err) {
+      if (err?.response?.status === 401) {
+        const expected = CREDS[role];
+        setSubmitting(false);
+        setError(`Wrong credentials for ${ROLE_LABEL[role]}. Demo login: ${expected.username} / ${expected.password}.`);
+        return;
+      }
+      // Backend unreachable → fall back to the hardcoded demo logins so the
+      // prototype still works offline.
+      const expected = CREDS[role];
+      if (username.trim().toLowerCase() === expected.username && password === expected.password) {
+        const u = signin({
+          name: expected.displayName, email: expected.email, role,
+          institute: expected.institute, studentId: expected.studentId,
+        });
+        redirect(u);
+      } else {
+        setSubmitting(false);
+        setError(`Can't reach the server, and that's not a demo login. Try ${expected.username} / ${expected.password}.`);
+      }
     }
-
-    const u = signin({ name: expected.displayName, email: expected.email, role });
-    setTimeout(() => {
-      if (u.role === 'admin') navigate('/dashboard', { replace: true });
-      else navigate(u.hasApplication ? '/me/dashboard' : '/me/apply', { replace: true });
-    }, 280);
   };
 
   const cred = CREDS[role];
@@ -167,7 +216,7 @@ export default function SignIn() {
             <button type="submit" className="btn btn-primary signin-submit" disabled={submitting}>
               {submitting ? 'Signing in…' : (
                 <>
-                  Sign in as {role === 'admin' ? 'Lender' : 'Borrower'}
+                  Sign in as {ROLE_LABEL[role]}
                   <ArrowRight size={14} />
                 </>
               )}

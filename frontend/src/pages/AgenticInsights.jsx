@@ -126,8 +126,19 @@ function ResultView({ data, llmLabel }) {
   const explain  = data.agentic_explainability || {};
   const nba      = data.agentic_nba || {};
 
-  const pct  = (v) => v != null ? `${Math.round(v * 100)}%` : '—';
+  const pct  = (v) => v != null ? `${Math.min(99, Math.round(v * 100))}%` : '—';
   const lakh = (v) => v != null ? `₹${(v / 100000).toFixed(1)}L` : '—';
+  // Free interventions have infinite ROI and ₹0 cost — show meaningful labels
+  // instead of "₹0" / "∞", which read as missing data.
+  const fmtCost = (c) => (c == null || c <= 0) ? 'No upfront cost' : `₹${Number(c).toLocaleString('en-IN')}`;
+  const fmtRoi  = (label) => {
+    if (label == null || label === '') return null;
+    const s = String(label).trim();
+    if (s === '∞' || /^inf/i.test(s)) return 'High ROI';
+    const num = parseFloat(s);
+    if (!isNaN(num) && num >= 100) return 'High ROI';
+    return `ROI ${s}`;
+  };
 
   return (
     <div className="result-view">
@@ -212,8 +223,8 @@ function ResultView({ data, llmLabel }) {
               <div className="nba-body">
                 <div className="nba-text">{a.action}</div>
                 <div className="nba-meta">
-                  {a.cost_inr != null && <span>Cost ₹{a.cost_inr.toLocaleString('en-IN')}</span>}
-                  {a.roi_label && <span className="nba-roi">ROI {a.roi_label}</span>}
+                  <span>{fmtCost(a.cost_inr)}</span>
+                  {fmtRoi(a.roi_label) && <span className="nba-roi">{fmtRoi(a.roi_label)}</span>}
                 </div>
               </div>
               {a.priority && (
@@ -335,7 +346,7 @@ function AgenticInsights() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {/* Live Demo — horizontal layout */}
         <div className="card" style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-          <div style={{ flex: '0 0 420px', minWidth: 260 }}>
+          <div style={{ flex: '1 1 380px', minWidth: 0 }}>
             <div className="card-title" style={{ color: 'var(--accent-purple)' }}><Activity size={15} /> Live Agent Demo</div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
               Trigger a full pipeline execution for a specific student. This orchestrates the ML models first, then runs the agents to enrich the output.
@@ -387,7 +398,7 @@ function AgenticInsights() {
         </div>
 
         {/* Secondary cards placed underneath in a responsive two-column grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div className="grid-2">
           <div className="card">
             <div className="card-title">System Architecture Flow</div>
             <div className="flow-diagram">

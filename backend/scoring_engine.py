@@ -11,6 +11,18 @@ import numpy as np
 # the model never over-rewards self-reported signals over the trained features.
 PROFILE_MAX_BOOST_PP = 15.0
 
+# ─── Placement-probability display cap ───────────────────────────────────────
+# Placement is never a dead-certain 100% — real-world uncertainty always leaves a
+# residual. Clamp every horizon to this so the UI never shows a misleading 100%.
+PROB_CAP = 0.99
+
+# ─── Backlog penalty ─────────────────────────────────────────────────────────
+# An unresolved current-semester backlog is a strong negative signal the trained
+# model never sees (it isn't one of the 10 model features). Rather than retrain,
+# we apply it as a post-prediction probability penalty + a risk-band override.
+BACKLOG_PENALTY_PP = 0.07     # placement probability lost per active backlog
+BACKLOG_PENALTY_MAX = 0.32    # total penalty is capped here
+
 def compute_profile_boost(linked_profiles: dict | None) -> tuple[float, list[str]]:
     """Returns (boost_pp, reasons) where boost_pp ∈ [0, 15] and reasons is a
     human-readable list of what contributed. linked_profiles shape:
@@ -56,11 +68,18 @@ class ScoringEngine:
     def __init__(self, models_dir='models'):
         suffix = _pick_variant(models_dir)
         self.variant = suffix or 'synthetic'
-        self.clf = joblib.load(f'{models_dir}/placement_classifier{suffix}.pkl')
+        self.clf = joblib.load(f'{models_dir}/placement_classifier{suffix}.pkl')  # 6m, primary
         self.reg = joblib.load(f'{models_dir}/salary_regressor{suffix}.pkl')
         self.encoders = joblib.load(f'{models_dir}/encoders{suffix}.pkl')
         self.explainer = joblib.load(f'{models_dir}/shap_explainer{suffix}.pkl')
-        print(f"[ScoringEngine] Loaded variant: {self.variant}")
+
+        # Per-horizon classifiers (3m / 12m). When a dedicated model is missing,
+        # score_student falls back to scaling the 6m probability (legacy behaviour).
+        self.clf_3m = self._maybe_load(f'{models_dir}/placement_classifier_3m{suffix}.pkl')
+        self.clf_12m = self._maybe_load(f'{models_dir}/placement_classifier_12m{suffix}.pkl')
+        print(f"[ScoringEngine] Loaded variant: {self.variant} "
+              f"(3m: {'model' if self.clf_3m is not None else 'fallback'}, "
+              f"12m: {'model' if self.clf_12m is not None else 'fallback'})")
 
         self.features = [
             'course_type', 'institute_tier', 'region', 'cgpa', 'internship_months',
@@ -82,6 +101,11 @@ class ScoringEngine:
             "Resume Coaching Session": 1000,
             "Domain Certification (Finance/HR)": 3500,
         }
+
+    @staticmethod
+    def _maybe_load(path):
+        """Load a pickled model if it exists, else return None (graceful fallback)."""
+        return joblib.load(path) if os.path.exists(path) else None
 
     def _safe_float(self, val):
         """Convert any value to a JSON-safe float."""
@@ -156,6 +180,8 @@ class ScoringEngine:
         return round(monthly_salary / monthly_emi, 2)
 
     def _determine_risk_band(self, probability: float, emi_comfort: float, data: dict) -> str:
+        backlogs = self._safe_int(data.get('active_backlogs', 0))
+
         # Hard override rules (from PRD 12.2)
         if self._safe_float(data.get('cgpa', 10)) < 5.0 and self._safe_int(data.get('internship_months', 1)) == 0:
             return "HIGH"
@@ -163,14 +189,22 @@ class ScoringEngine:
             return "HIGH"
         if self._safe_float(data.get('macro_climate_index', 1.0)) < 0.2:
             return "HIGH"
+        # Multiple unresolved backlogs → critical academic risk regardless of model prob.
+        if backlogs >= 2:
+            return "HIGH"
 
         # Probability-based classification
         if probability >= 0.70:
-            return "LOW"
+            band = "LOW"
         elif probability >= 0.45:
-            return "MEDIUM"
+            band = "MEDIUM"
         else:
-            return "HIGH"
+            band = "HIGH"
+
+        # A single active backlog cannot sit in the LOW band — floor it at MEDIUM.
+        if backlogs >= 1 and band == "LOW":
+            band = "MEDIUM"
+        return band
 
     def _get_nba(self, risk_band: str, emi_comfort: float, data: dict) -> list:
         actions = []
@@ -328,21 +362,112 @@ class ScoringEngine:
             "recommended": prob_delta > 5
         }
 
+    def score_batch_bands(self, students: list) -> dict:
+        """Fast, SHAP-free batch risk-banding for a whole portfolio.
+
+        Returns {student_id: {risk_band, placement_6m, placement_probability,
+        expected_salary, emi_comfort_index}}. This is what the lender dashboard,
+        portfolio table, cohort summary, and alert engine read from — so every
+        risk band shown is the *real* model output (matching score_student), not a
+        client-side heuristic, while still being cheap enough to run over 10k rows
+        because it skips the expensive SHAP explainer + NBA generation.
+        """
+        if not students:
+            return {}
+
+        work = pd.DataFrame(list(students))
+        for col in self.features:
+            if col not in work.columns:
+                work[col] = 0
+        enc = work[self.features].copy()
+        for col, le in self.encoders.items():
+            if col in enc.columns:
+                known = set(le.classes_)
+                fallback = le.classes_[0]
+                enc[col] = enc[col].map(lambda v, k=known, f=fallback: v if v in k else f)
+                enc[col] = le.transform(enc[col])
+        X = enc[self.features]
+
+        p6 = self.clf.predict_proba(X)[:, 1]
+        p3 = self.clf_3m.predict_proba(X)[:, 1] if self.clf_3m is not None else p6 * 0.6
+        p12 = self.clf_12m.predict_proba(X)[:, 1] if self.clf_12m is not None else p6 * 1.3
+        sal = self.reg.predict(X)
+
+        out = {}
+        for i, stu in enumerate(students):
+            prob6 = max(0.0, min(1.0, float(p6[i])))
+            prob3 = max(0.0, min(float(p3[i]), prob6))
+            prob12 = min(1.0, max(float(p12[i]), prob6))
+
+            backlogs = self._safe_int(stu.get('active_backlogs', 0))
+            if backlogs > 0:
+                penalty = min(BACKLOG_PENALTY_PP * backlogs, BACKLOG_PENALTY_MAX)
+                prob3 = max(0.0, prob3 - penalty)
+                prob6 = max(0.0, prob6 - penalty)
+                prob12 = max(0.0, prob12 - penalty)
+
+            prob3 = min(prob3, PROB_CAP)
+            prob6 = min(prob6, PROB_CAP)
+            prob12 = min(prob12, PROB_CAP)
+
+            salary_median = max(0, self._safe_int(round(float(sal[i]), -3)))
+            emi = self._calculate_emi_comfort(salary_median, stu.get('monthly_emi', 0))
+            band = self._determine_risk_band(prob6, emi, stu)
+
+            sid = stu.get('student_id', f'ROW-{i}')
+            out[sid] = {
+                "student_id": sid,
+                "risk_band": band,
+                "placement_6m": round(prob6, 2),
+                "placement_probability": {
+                    "3m": round(prob3, 2), "6m": round(prob6, 2), "12m": round(prob12, 2),
+                },
+                "expected_salary": salary_median,
+                "emi_comfort_index": emi,
+            }
+        return out
+
     def score_student(self, data: dict) -> dict:
         # Sanitize all numeric inputs to avoid NaN propagation
-        for field in ['cgpa', 'iqi', 'behavioral_activity_score', 'field_demand_score', 'macro_climate_index', 'monthly_emi', 'internship_months', 'actual_salary']:
+        for field in ['cgpa', 'iqi', 'behavioral_activity_score', 'field_demand_score', 'macro_climate_index', 'monthly_emi', 'internship_months', 'actual_salary', 'active_backlogs']:
             if field in data:
                 data[field] = self._safe_float(data[field])
-                if field in ['behavioral_activity_score', 'internship_months', 'monthly_emi']:
+                if field in ['behavioral_activity_score', 'internship_months', 'monthly_emi', 'active_backlogs']:
                     data[field] = int(data[field])
 
         df = self._preprocess(data)
 
-        # Predictions
+        # Predictions — each horizon has its own trained classifier when available.
         prob_6m = float(self.clf.predict_proba(df)[0][1])
-        # Approximate 3m and 12m (simplified offsets for prototype)
-        prob_3m = max(0.0, min(1.0, prob_6m * 0.6))
-        prob_12m = max(0.0, min(1.0, prob_6m * 1.3))
+        prob_3m = (
+            float(self.clf_3m.predict_proba(df)[0][1])
+            if self.clf_3m is not None else prob_6m * 0.6   # legacy fallback
+        )
+        prob_12m = (
+            float(self.clf_12m.predict_proba(df)[0][1])
+            if self.clf_12m is not None else prob_6m * 1.3  # legacy fallback
+        )
+
+        # Enforce timeline monotonicity: P(placed by 3m) ≤ P(6m) ≤ P(12m).
+        # Independently-trained classifiers can occasionally cross over; clamp so
+        # the timeline shown to lenders is always internally consistent.
+        prob_6m  = max(0.0, min(1.0, prob_6m))
+        prob_3m  = max(0.0, min(prob_3m, prob_6m))
+        prob_12m = min(1.0, max(prob_12m, prob_6m))
+
+        # Backlog penalty — an unresolved current-semester backlog drags every
+        # horizon down. Subtracting an equal amount preserves the 3m≤6m≤12m order.
+        backlogs = self._safe_int(data.get('active_backlogs', 0))
+        if backlogs > 0:
+            penalty = min(BACKLOG_PENALTY_PP * backlogs, BACKLOG_PENALTY_MAX)
+            prob_3m  = max(0.0, prob_3m - penalty)
+            prob_6m  = max(0.0, prob_6m - penalty)
+            prob_12m = max(0.0, prob_12m - penalty)
+
+        # Never present a dead-certain 100% — cap every horizon at PROB_CAP.
+        prob_3m  = min(prob_3m, PROB_CAP)
+        prob_6m  = min(prob_6m, PROB_CAP)
+        prob_12m = min(prob_12m, PROB_CAP)
 
         salary_raw = float(self.reg.predict(df)[0])
         salary_median = max(0, self._safe_int(round(salary_raw, -3)))
@@ -353,6 +478,17 @@ class ScoringEngine:
         risk_band = self._determine_risk_band(prob_6m, emi_comfort, data)
         confidence = self._calculate_confidence(data)
         shap_drivers = self._get_shap_drivers(df)
+        # Surface active backlogs as the top risk driver — the model doesn't see
+        # this feature, so we add it explicitly to the explanation.
+        if backlogs > 0:
+            shap_drivers.insert(0, {
+                "feature": "active_backlogs",
+                "readable_name": "Active Backlogs",
+                "shap_value": -round(min(BACKLOG_PENALTY_PP * backlogs, BACKLOG_PENALTY_MAX), 4),
+                "impact_direction": "Negative",
+                "description": f"{backlogs} unresolved backlog(s) this semester sharply reduce placement and on-time graduation odds.",
+            })
+            shap_drivers = shap_drivers[:3]
         nba = self._get_nba(risk_band, emi_comfort, data)
         peer = self._compute_peer_percentile(data, prob_6m)
 
