@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-xgboost
+xgboost<=2.0.3
 lightgbm
 scikit-learn
 pandas
