@@ -430,7 +430,7 @@ function EmployabilityTab({ data, onChange, onSave, saving, flash, error }) {
             <div className="apply-grid" style={{ marginBottom: '0.5rem' }}>
               <Field label="Project name"><input {...inp} value={newProj.name} onChange={e => setNewProj(p => ({ ...p, name: e.target.value }))} placeholder="e.g. AI Resume Screener" /></Field>
               <Field label="Tech stack"><input {...inp} value={newProj.tech_stack} onChange={e => setNewProj(p => ({ ...p, tech_stack: e.target.value }))} placeholder="Python, FastAPI, React…" /></Field>
-              <Field label="GitHub / demo URL"><input {...inp} type="url" value={newProj.url} onChange={e => setNewProj(p => ({ ...p, url: e.target.value }))} placeholder="https://github.com/…" /></Field>
+              <Field label="Project / repository URL"><input {...inp} type="url" value={newProj.url} onChange={e => setNewProj(p => ({ ...p, url: e.target.value }))} placeholder="https://github.com/…" /></Field>
             </div>
             <Field label="Description">
               <textarea className="select-input" rows={2} value={newProj.description} onChange={e => setNewProj(p => ({ ...p, description: e.target.value }))} placeholder="What problem does it solve?" style={{ width: '100%', resize: 'vertical' }} />
@@ -550,6 +550,133 @@ function VBadge({ status }) {
   );
 }
 
+// ─── Fetched academic record display ─────────────────────────────────────────
+function CGPABar({ label, value, max = 10, color, isOfficial }) {
+  const pct = Math.min(100, (value / max) * 100);
+  return (
+    <div style={{ marginBottom: '0.6rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '0.25rem' }}>
+        <span style={{ color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+          {isOfficial && <ShieldCheck size={11} color={color}/>} {label}
+        </span>
+        <span className="mono" style={{ fontWeight: 700, color }}>{value}</span>
+      </div>
+      <div style={{ height: '6px', background: 'var(--paper-deep)', borderRadius: '3px', overflow: 'hidden', border: '1px solid var(--card-edge)' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '3px', transition: 'width 0.5s ease' }}/>
+      </div>
+    </div>
+  );
+}
+
+function DocRow({ label, value, mono }) {
+  if (!value && value !== 0) return null;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0.35rem 0', borderBottom: '1px solid var(--rule)', fontSize: '0.82rem', gap: '1rem' }}>
+      <span style={{ color: 'var(--ink-muted)', flexShrink: 0 }}>{label}</span>
+      <span className={mono ? 'mono' : ''} style={{ color: 'var(--ink)', fontWeight: 500, textAlign: 'right', wordBreak: 'break-word' }}>{value}</span>
+    </div>
+  );
+}
+
+function FetchedRecordCard({ record, onDismiss }) {
+  const { official_cgpa, reported_cgpa, delta, match, minor_mismatch, discrepancy,
+          cgpa_source, abc_record, digilocker_document } = record;
+
+  const matchColor = discrepancy ? 'var(--risk-high)' : minor_mismatch ? 'var(--risk-medium)' : 'var(--risk-low)';
+  const matchBg    = discrepancy ? 'rgba(168,40,40,0.07)' : minor_mismatch ? 'rgba(165,117,31,0.07)' : 'rgba(47,110,69,0.07)';
+  const matchNote  = abc_record?.comparison?.note || digilocker_document?.comparison?.note || '';
+
+  return (
+    <div className="card animate-fade-up" style={{ marginBottom: '1rem', border: `1px solid ${matchColor}`, borderRadius: '4px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <ShieldCheck size={16} color={matchColor}/> Academic Record Retrieved
+          </div>
+          <div style={{ fontSize: '0.74rem', color: 'var(--ink-faint)', marginTop: '3px' }}>
+            CGPA source: <em>{cgpa_source}</em>
+          </div>
+        </div>
+        <button onClick={onDismiss} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-faint)', padding: '2px' }}>
+          <X size={16}/>
+        </button>
+      </div>
+
+      {/* CGPA comparison */}
+      <div style={{ padding: '0.85rem', background: matchBg, borderRadius: '3px', marginBottom: '1rem', border: `1px solid ${matchColor}33` }}>
+        <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: matchColor, marginBottom: '0.75rem' }}>
+          CGPA Comparison
+        </div>
+        <CGPABar label="Official (from academic records)" value={official_cgpa} color={matchColor} isOfficial />
+        <CGPABar label="Self-reported (your profile)"     value={reported_cgpa} color="var(--ink-muted)" />
+        <div style={{ marginTop: '0.5rem', padding: '0.4rem 0.7rem', background: 'var(--card-raised)', borderRadius: '3px', fontSize: '0.8rem', color: matchColor, fontWeight: discrepancy ? 700 : 400 }}>
+          {discrepancy    && <AlertTriangle size={12} style={{ verticalAlign: '-2px', marginRight: '5px' }}/>}
+          {!discrepancy   && <CheckCircle2  size={12} style={{ verticalAlign: '-2px', marginRight: '5px' }}/>}
+          {matchNote || (match ? 'CGPAs match.' : `Delta: ${delta} pts`)}
+        </div>
+      </div>
+
+      {/* ABC record */}
+      {abc_record && (
+        <div style={{ marginBottom: digilocker_document ? '1rem' : 0 }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--navy)', marginBottom: '0.5rem' }}>
+            ABC Academic Bank Record
+          </div>
+          <div style={{ background: 'var(--paper-deep)', padding: '0.75rem', borderRadius: '3px', border: '1px solid var(--card-edge)' }}>
+            <DocRow label="ABC ID"         value={abc_record.abc_id} mono />
+            <DocRow label="Institution"    value={abc_record.institution} />
+            <DocRow label="Program"        value={abc_record.program} />
+            <DocRow label="Academic year"  value={abc_record.academic_year} />
+            <DocRow label="Verified CGPA"  value={abc_record.verified_cgpa} mono />
+            <DocRow label="Grade class"    value={abc_record.grade_class} />
+            <DocRow label="Credits earned" value={abc_record.credits_earned} mono />
+            <DocRow label="Status"         value={abc_record.passing_status} />
+            <div style={{ fontSize: '0.66rem', color: 'var(--ink-faint)', marginTop: '0.5rem', fontStyle: 'italic' }}>
+              {abc_record.source}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DigiLocker document */}
+      {digilocker_document && (
+        <div>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--navy)', marginBottom: '0.5rem' }}>
+            DigiLocker Document
+          </div>
+          <div style={{ background: 'var(--paper-deep)', padding: '0.75rem', borderRadius: '3px', border: '1px solid var(--card-edge)' }}>
+            <DocRow label="Document type"   value={digilocker_document.document_type} />
+            <DocRow label="URN"             value={digilocker_document.urn} mono />
+            <DocRow label="Issuer"          value={digilocker_document.issuer} />
+            <DocRow label="Institution"     value={digilocker_document.institution} />
+            <DocRow label="Program"         value={digilocker_document.program} />
+            <DocRow label="CGPA on document" value={digilocker_document.cgpa_on_document} mono />
+            <DocRow label="Digitally signed" value={digilocker_document.digitally_signed ? 'Yes' : 'No'} />
+            {(digilocker_document.semester_breakdown || []).length > 0 && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--ink-faint)', marginBottom: '0.35rem' }}>
+                  Semester breakdown (from document)
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                  {digilocker_document.semester_breakdown.map((s) => (
+                    <span key={s.semester} className="mono" style={{ fontSize: '0.76rem', padding: '2px 8px', background: 'var(--card-raised)', border: '1px solid var(--card-edge)', borderRadius: '2px', color: 'var(--ink)' }}>
+                      Sem {s.semester}: {s.gpa}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ fontSize: '0.66rem', color: 'var(--ink-faint)', marginTop: '0.5rem', fontStyle: 'italic' }}>
+              {digilocker_document.source}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Tab: Verification ────────────────────────────────────────────────────────
 // This component owns its own `verif` state — seeded from the parent prop once
 // on mount, then updated directly from API responses. This means verification
@@ -557,10 +684,11 @@ function VBadge({ status }) {
 // mounted and all form state is preserved between actions.
 function VerificationTab({ sid, richProfile, initialVerif, onVerifUpdate }) {
   // Local state seeded from parent prop; syncs when parent re-fetches full profile
-  const [verif,       setVerif]       = useState(initialVerif || {});
-  const [submitting,  setSubmitting]  = useState({});
-  const [flash,       setFlash]       = useState({});
-  const [errors,      setErrors]      = useState({});
+  const [verif,        setVerif]        = useState(initialVerif || {});
+  const [submitting,   setSubmitting]   = useState({});
+  const [flash,        setFlash]        = useState({});
+  const [errors,       setErrors]       = useState({});
+  const [fetchedRecord, setFetchedRecord] = useState(null);  // last fetch result to show
 
   // ABC ID / DigiLocker inputs — pre-seeded with already-stored values
   const [abcId,   setAbcId]  = useState(initialVerif?.academic?.abc_id || '');
@@ -600,15 +728,25 @@ function VerificationTab({ sid, richProfile, initialVerif, onVerifUpdate }) {
     const digi = digiId.trim();
     if (!abc && !digi) return;
     setErrors(e => ({ ...e, academic: null }));
+    setFetchedRecord(null);
     sub('academic', true);
     try {
       const r = await axios.post(`${API_BASE}/api/v1/student/${sid}/verify/academic`,
         { abc_id: abc || null, digilocker_id: digi || null });
-      // Update local state directly — no page reload needed
-      const updated = { ...r.data, confidence: r.data.confidence };
+      // Store the fetched document record for display
+      setFetchedRecord(r.data.fetched_record || null);
+      // Update local verif state directly — no page spinner triggered
+      const updated = { ...r.data };
+      delete updated.fetched_record;
       setVerif(updated);
       onVerifUpdate?.(updated);
-      flashSet('academic', 'Academic verification confirmed.');
+      const fr = r.data.fetched_record;
+      const msg = fr?.discrepancy
+        ? `Verified — CGPA mismatch flagged (official ${fr.official_cgpa} vs reported ${fr.reported_cgpa})`
+        : fr?.minor_mismatch
+        ? `Verified — minor rounding difference (${fr.delta} pts)`
+        : 'Academic data verified. CGPA confirmed.';
+      flashSet('academic', msg);
     } catch (e) {
       setErrors(v => ({ ...v, academic: e?.response?.data?.detail || 'Submission failed.' }));
     } finally { sub('academic', false); }
@@ -804,12 +942,17 @@ function VerificationTab({ sid, richProfile, initialVerif, onVerifUpdate }) {
               : <><ShieldCheck size={14}/> Submit verification</>}
           </button>
         )}
-        {allAcadVerified && (
+        {allAcadVerified && !fetchedRecord && (
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', color: 'var(--risk-low)', fontSize: '0.84rem', fontWeight: 600, padding: '0.4rem 0.85rem', border: '1px solid rgba(47,110,69,0.3)', borderRadius: '3px', background: 'rgba(47,110,69,0.07)' }}>
             <CheckCircle2 size={15}/> Both academic sources verified. +40 confidence points.
           </div>
         )}
       </div>
+
+      {/* ── Fetched document record ───────────────────────────────────────── */}
+      {fetchedRecord && (
+        <FetchedRecordCard record={fetchedRecord} onDismiss={() => setFetchedRecord(null)} />
+      )}
 
       {/* ── Certification Verification ────────────────────────────────────── */}
       {certList.length > 0 ? (

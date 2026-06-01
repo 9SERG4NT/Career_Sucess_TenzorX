@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   motion, AnimatePresence, useScroll, useTransform, useReducedMotion,
-  useInView, animate,
 } from 'motion/react';
 import {
   ArrowRight, Eye, Globe, Target, ChevronDown,
@@ -50,30 +49,6 @@ const USPS = [
     icon: Target,
   },
 ];
-
-// ─── KPI count-up ──────────────────────────────────────────────────
-function Counter({ to, suffix = '', prefix = '', decimals = 0, duration = 1.6, delay = 0 }) {
-  const ref = useRef(null);
-  const reduce = useReducedMotion();
-  const [value, setValue] = useState(reduce ? to : 0);
-
-  useEffect(() => {
-    if (reduce) return;
-    const controls = animate(0, to, {
-      duration,
-      delay,
-      ease: [0.2, 0.7, 0.2, 1],
-      onUpdate: (v) => setValue(v),
-    });
-    return () => controls.stop();
-  }, [to, duration, delay, reduce]);
-
-  const display = decimals === 0
-    ? Math.round(value).toLocaleString('en-IN')
-    : value.toFixed(decimals);
-
-  return <span ref={ref} className="mono">{prefix}{display}{suffix}</span>;
-}
 
 // ─── Hero ──────────────────────────────────────────────────────────
 function Hero({ scrollY, onScrollHint }) {
@@ -166,28 +141,6 @@ function Hero({ scrollY, onScrollHint }) {
           </Link>
         </motion.div>
 
-        {/* KPI strip */}
-        <motion.div
-          className="landing-kpi-strip"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 1.5 }}
-        >
-          {[
-            { num: 10000, prefix: '', suffix: '', label: 'Student records' },
-            { num: 0.86, decimals: 2, prefix: '', suffix: '', label: 'F1 · 6-month' },
-            { num: 32, suffix: '', label: 'API endpoints' },
-            { num: 5, suffix: '', label: 'AI agents' },
-          ].map((k, i) => (
-            <div key={k.label} className="landing-kpi">
-              <span className="landing-kpi-num">
-                <Counter to={k.num} prefix={k.prefix} suffix={k.suffix} decimals={k.decimals || 0} duration={1.4} delay={1.6 + i * 0.12} />
-              </span>
-              <span className="landing-kpi-label">{k.label}</span>
-            </div>
-          ))}
-        </motion.div>
-
         {/* Right-side hero image */}
         <img
           src={heroImg}
@@ -251,33 +204,79 @@ function QuoteRotator() {
         </div>
 
         <div className="landing-quote-stage">
-          <AnimatePresence mode="wait">
-            <motion.figure
-              key={i}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.65, ease: [0.2, 0.7, 0.2, 1] }}
-              className="landing-quote-figure"
-            >
-              <span className="landing-quote-mark" aria-hidden>"</span>
-              <blockquote className="landing-quote">
-                <span className="landing-quote-text">{q.text}</span>{' '}
-                <span className="landing-quote-tail">{q.tail}</span>
-              </blockquote>
-              <figcaption className="landing-quote-attrib">— {q.attrib}</figcaption>
-            </motion.figure>
-          </AnimatePresence>
+          {/* Left: rotating quote */}
+          <div style={{ position: 'relative', paddingBottom: '2.5rem' }}>
+            <AnimatePresence mode="wait">
+              <motion.figure
+                key={i}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                transition={{ duration: 0.65, ease: [0.2, 0.7, 0.2, 1] }}
+                className="landing-quote-figure"
+              >
+                <span className="landing-quote-mark" aria-hidden>"</span>
+                <blockquote className="landing-quote">
+                  <span className="landing-quote-text">{q.text}</span>{' '}
+                  <span className="landing-quote-tail">{q.tail}</span>
+                </blockquote>
+                <figcaption className="landing-quote-attrib">— {q.attrib}</figcaption>
+              </motion.figure>
+            </AnimatePresence>
 
-          {/* Pager */}
-          <div className="landing-quote-pager">
-            {QUOTES.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => setI(idx)}
-                aria-label={`Quote ${idx + 1}`}
-                className={`landing-quote-pager-dot ${idx === i ? 'active' : ''}`}
-              />
+            {/* Pager */}
+            <div className="landing-quote-pager">
+              {QUOTES.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setI(idx)}
+                  aria-label={`Quote ${idx + 1}`}
+                  className={`landing-quote-pager-dot ${idx === i ? 'active' : ''}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Right: commitment stats */}
+          <div className="landing-quote-commitments">
+            {[
+              {
+                stat: '100%',
+                unit: 'SHAP-explained',
+                desc: 'Every prediction is decomposed into plain-language drivers. Lender and borrower see the exact same reasoning — no black box on either side.',
+              },
+              {
+                stat: 'Free',
+                unit: 'for every borrower',
+                desc: 'A personalised Next-Best-Action roadmap — certifications, interview coaching, recruiter introductions — at no cost.',
+              },
+              {
+                stat: '₹4.2L',
+                unit: 'avg. salary uplift',
+                desc: 'Borrowers who act on their roadmap see measurably better placement outcomes.',
+              },
+            ].map(({ stat, unit, desc }, idx) => (
+              <div key={idx} style={{
+                display: 'flex', gap: '1.25rem', alignItems: 'flex-start',
+                padding: '1.4rem 0',
+                borderBottom: idx < 2 ? '1px solid var(--rule)' : 'none',
+              }}>
+                <div style={{ flexShrink: 0, minWidth: '5rem', textAlign: 'right' }}>
+                  <div style={{
+                    fontFamily: 'var(--font-display)', fontWeight: 400, fontSize: '2rem',
+                    lineHeight: 1, letterSpacing: '-0.03em', color: 'var(--signal)',
+                    fontFeatureSettings: '"tnum"',
+                  }}>{stat}</div>
+                  <div style={{
+                    fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.14em',
+                    textTransform: 'uppercase', color: 'var(--ink-faint)', marginTop: '3px',
+                  }}>{unit}</div>
+                </div>
+                <p style={{
+                  margin: 0, fontSize: '0.88rem', lineHeight: 1.6,
+                  color: 'var(--ink-muted)', paddingTop: '0.2rem',
+                }}>{desc}</p>
+              </div>
             ))}
           </div>
         </div>
@@ -341,7 +340,7 @@ function HowItWorks() {
       steps: [
         ['Apply', 'Three-step loan application — academic, financial, review.'],
         ['Pre-screen', 'Instant placement-risk score with SHAP-explained drivers. See your salary band, EMI comfort, and recruiter matches.'],
-        ['Improve', 'Free Next-Best-Action plan: certifications, mock interviews, recruiter intros. The intervention that lifts your score the most, first.'],
+        ['Improve', 'Free Next-Best-Action plan: certifications, interview coaching, recruiter introductions. The intervention that lifts your score the most, first.'],
       ],
     },
     {
@@ -442,7 +441,7 @@ function ClosingCta() {
         </motion.div>
 
         <div className="landing-footer">
-          © 2026 Poonawalla Fincorp · PlacementIQ v2.0 · prototype
+          © 2026 Poonawalla Fincorp · PlacementIQ v2.0
         </div>
       </div>
     </section>

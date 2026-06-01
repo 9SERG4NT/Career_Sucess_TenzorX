@@ -334,11 +334,11 @@ export default function StudentDashboard() {
       <div className="card" style={{ borderLeft: '3px solid var(--signal)' }}>
         <div className="card-title"><Shield size={13} /> Notes from your lender</div>
         <p style={{ fontFamily: 'var(--font-display)', fontStyle: 'italic', fontSize: '1.05rem', lineHeight: 1.5, color: 'var(--ink)', marginBottom: '0.5rem' }}>
-          We're routing a free mock-interview voucher to your registered email this week.
-          Completing 3 mock interviews historically lifts placement probability by 8–11 pp for borrowers in your cohort.
+          We're routing a complimentary interview preparation session to your registered email this week.
+          Completing 3 structured practice sessions historically lifts placement probability by 8–11 pp for borrowers in your cohort.
         </p>
         <div style={{ fontSize: '0.78rem', color: 'var(--ink-muted)' }}>
-          — Demo Fincorp · Portfolio Operations
+          — Poonawalla Fincorp · Portfolio Operations
         </div>
       </div>
     </div>

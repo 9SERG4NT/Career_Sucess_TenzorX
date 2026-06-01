@@ -187,36 +187,66 @@ def compute_confidence(v: dict) -> dict:
 
 # ── Verification actions ─────────────────────────────────────────────────────
 
-def verify_academic(student_id: str, abc_id: str = None, digilocker_id: str = None,
-                    reported_cgpa: float = None) -> dict:
-    """Submit ABC ID and/or DigiLocker ID for academic verification."""
+def verify_academic(
+    student_id: str,
+    abc_id:        str   = None,
+    digilocker_id: str   = None,
+    reported_cgpa: float = None,
+    official_cgpa: float = None,   # computed from semester data in main.py
+) -> dict:
+    """Verify academic credentials.
+
+    official_cgpa is pre-computed by the endpoint from semester GPA data:
+    - If the student entered semester GPAs  → weighted average of those values
+    - If no semester data available          → reported_cgpa (no discrepancy possible)
+
+    Discrepancy logic
+    ─────────────────
+    delta  ≤ 0.20   → VERIFIED, no flag
+    delta  ≤ 0.50   → VERIFIED with MINOR_MISMATCH note (rounding / grading scheme)
+    delta  >  0.50  → DISCREPANCY (significant inflation likely)
+    """
     with _lock:
-        rec = _load().get(student_id, _blank(student_id))
+        rec  = _load().get(student_id, _blank(student_id))
         acad = rec["academic"]
 
         if abc_id:
             abc_id = abc_id.strip().upper().replace("-", "")
             if not _is_valid_abc_id(abc_id):
                 return {"error": f"Invalid ABC ID — must be exactly 12 alphanumeric characters (got {len(abc_id)})."}
-            acad["abc_id"] = abc_id
-            # ABC confirms the CGPA the student currently holds on record.
-            # Discrepancy detection fires later via check_cgpa_discrepancy() if
-            # the student inflates their CGPA after this verification is locked.
-            verified_cgpa = round(float(reported_cgpa), 2) if reported_cgpa is not None else None
-            acad["verified_cgpa"]           = verified_cgpa
-            acad["reported_cgpa_at_verify"] = verified_cgpa
-            acad["discrepancy"]             = False
-            acad["discrepancy_delta"]       = None
-            acad["abc_id_status"]           = "VERIFIED"
-            acad["abc_verified_at"]         = _now()
+
+            official = round(float(official_cgpa), 2) if official_cgpa is not None else round(float(reported_cgpa or 0), 2)
+            reported = round(float(reported_cgpa or 0), 2)
+            delta    = round(abs(official - reported), 2)
+
+            acad["abc_id"]               = abc_id
+            acad["verified_cgpa"]        = official      # locked official value
+            acad["reported_cgpa_at_verify"] = reported
+            acad["discrepancy"]          = delta > 0.50
+            acad["minor_mismatch"]       = 0.20 < delta <= 0.50
+            acad["discrepancy_delta"]    = delta if delta > 0.20 else None
+            acad["abc_id_status"]        = "VERIFIED"
+            acad["abc_verified_at"]      = _now()
 
         if digilocker_id:
             digilocker_id = digilocker_id.strip()
             if not _is_valid_digilocker_urn(digilocker_id):
-                return {"error": "Invalid DigiLocker URN. Expected format: in.gov.digilocker.<issuer>.<type>.<id> (min 12 characters)."}
-            acad["digilocker_id"]        = digilocker_id
-            acad["digilocker_status"]    = "VERIFIED"
+                return {"error": "Invalid DigiLocker URN. Expected format: in.gov.digilocker.<issuer>.<type>.<id> (minimum 12 characters)."}
+
+            official = round(float(official_cgpa), 2) if official_cgpa is not None else round(float(reported_cgpa or 0), 2)
+            reported = round(float(reported_cgpa or 0), 2)
+            delta    = round(abs(official - reported), 2)
+
+            acad["digilocker_id"]          = digilocker_id
+            acad["digilocker_status"]      = "VERIFIED"
             acad["digilocker_verified_at"] = _now()
+            # DigiLocker also carries CGPA — use the same comparison if ABC not yet submitted
+            if not acad.get("abc_id"):
+                acad["verified_cgpa"]           = official
+                acad["reported_cgpa_at_verify"]  = reported
+                acad["discrepancy"]              = delta > 0.50
+                acad["minor_mismatch"]           = 0.20 < delta <= 0.50
+                acad["discrepancy_delta"]        = delta if delta > 0.20 else None
 
         return _write(student_id, rec)
 

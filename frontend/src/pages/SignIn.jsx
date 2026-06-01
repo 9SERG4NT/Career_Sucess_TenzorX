@@ -34,9 +34,9 @@ const ROLE_LABEL = { admin: 'Lender', college: 'College', student: 'Borrower' };
 // the real /api/v1/auth/login endpoint; this map is only the offline fallback (and
 // the hint text) used when the backend is unreachable.
 const CREDS = {
-  admin:   { username: 'admin',   password: '123', displayName: 'Lender Admin',    email: 'admin@poonawalla.demo' },
-  student: { username: 'student', password: '123', displayName: 'Demo Borrower',   email: 'student@poonawalla.demo', studentId: 'STU-2026-00001', institute: 'PF Demo Institute' },
-  college: { username: 'college', password: '123', displayName: 'Demo Placement Cell', email: 'college@poonawalla.demo', institute: 'PF Demo Institute' },
+  admin:   { username: 'admin',   password: '123', displayName: 'Lender Admin',    email: 'admin@poonawalla.in' },
+  student: { username: 'student', password: '123', displayName: 'Borrower',        email: 'student@poonawalla.in', studentId: 'STU-2026-00001', institute: 'PF Institute' },
+  college: { username: 'college', password: '123', displayName: 'Placement Office', email: 'college@poonawalla.in', institute: 'PF Institute' },
 };
 
 export default function SignIn() {
@@ -97,7 +97,7 @@ export default function SignIn() {
       if (err?.response?.status === 401) {
         const expected = CREDS[role];
         setSubmitting(false);
-        setError(`Wrong credentials for ${ROLE_LABEL[role]}. Demo login: ${expected.username} / ${expected.password}.`);
+        setError(`Incorrect credentials for ${ROLE_LABEL[role]} portal. Default access: ${expected.username} / ${expected.password}.`);
         return;
       }
       // Backend unreachable → fall back to the hardcoded demo logins so the
@@ -111,7 +111,7 @@ export default function SignIn() {
         redirect(u);
       } else {
         setSubmitting(false);
-        setError(`Can't reach the server, and that's not a demo login. Try ${expected.username} / ${expected.password}.`);
+        setError(`Server is unreachable. Default credentials are: ${expected.username} / ${expected.password}.`);
       }
     }
   };
@@ -195,7 +195,7 @@ export default function SignIn() {
                 <input
                   className="select-input signin-input mono"
                   type={showPw ? 'text' : 'password'}
-                  placeholder="123"
+                  placeholder="Enter password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -224,7 +224,7 @@ export default function SignIn() {
           </form>
 
           <div className="signin-footnote">
-            Mock authentication — credentials hardcoded for the prototype. Sign-in state persists in localStorage so refresh keeps you where you were.
+          Your session persists across browser refreshes. Contact your administrator if you need help accessing your account.
           </div>
         </motion.div>
       </main>

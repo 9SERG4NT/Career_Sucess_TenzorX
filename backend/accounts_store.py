@@ -28,18 +28,18 @@ _cache = None
 _SEED = {
     "admin": {
         "username": "admin", "password": "123", "role": "admin",
-        "name": "Lender Admin", "email": "admin@poonawalla.demo",
+        "name": "Lender Admin", "email": "admin@poonawalla.in",
         "student_id": None, "institute": None,
     },
     "college": {
         "username": "college", "password": "123", "role": "college",
-        "name": "Demo Placement Cell", "email": "college@poonawalla.demo",
-        "student_id": None, "institute": "PF Demo Institute",
+        "name": "Placement Office", "email": "college@poonawalla.in",
+        "student_id": None, "institute": "PF Institute",
     },
     "student": {
         "username": "student", "password": "123", "role": "student",
-        "name": "Demo Borrower", "email": "student@poonawalla.demo",
-        "student_id": "STU-2026-00001", "institute": "PF Demo Institute",
+        "name": "Borrower", "email": "student@poonawalla.in",
+        "student_id": "STU-2026-00001", "institute": "PF Institute",
     },
 }
 

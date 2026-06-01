@@ -725,7 +725,11 @@ strong { font-weight: 600; color: var(--ink); }
   border-bottom: 1px solid var(--rule-strong);
   border-radius: 0;
   padding: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+.tabs::-webkit-scrollbar { display: none; }
 
 .tab-btn {
   flex: 0 0 auto;
@@ -1394,15 +1398,23 @@ textarea.select-input { padding: 0.7rem 0.9rem; min-height: 84px; }
 
 .landing-quote-stage {
   min-height: 280px;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: start;
+}
+@media (max-width: 700px) {
+  .landing-quote-stage { grid-template-columns: 1fr; gap: 2.5rem; }
 }
 
 .landing-quote-figure {
   text-align: left;
-  max-width: 32ch;
+}
+
+.landing-quote-commitments {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .landing-quote-mark {

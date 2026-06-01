@@ -15,7 +15,7 @@ const EMPLOYER_TIERS = ['MNC', 'Unicorn', 'MidSize', 'Startup', 'Local'];
 const bandColor = (b) => b === 'LOW' ? 'var(--risk-low)' : b === 'HIGH' ? 'var(--risk-high)' : 'var(--risk-medium)';
 
 const DEFAULT_FORM = {
-  name: '', course_type: 'Engineering', institute_tier: 'B', institute_name: 'PF Demo Institute',
+  name: '', course_type: 'Engineering', institute_tier: 'B', institute_name: 'PF Institute',
   region: 'Bengaluru', cgpa: 7.0, internship_months: 2, employer_tier: 'MNC',
   monthly_emi: 12000, active_backlogs: 0,
 };
@@ -255,7 +255,7 @@ export default function Onboard() {
         <div className="card-title"><Users size={13} /> Issued borrower logins ({accounts.length})</div>
         {accounts.length === 0 ? (
           <div style={{ padding: '1.25rem 0', color: 'var(--ink-faint)', fontSize: '0.85rem' }}>
-            No borrower logins issued yet (the seeded demo borrower aside). Create one above.
+            No borrower accounts issued yet. Use the form above to onboard a new borrower and generate their access credentials.
           </div>
         ) : (
           <>

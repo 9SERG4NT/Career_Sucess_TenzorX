@@ -6,8 +6,12 @@ import {
   CheckCircle2, AlertOctagon, Target, TrendingUp,
   Clock, ChevronRight, Activity, Play, Map, Building2, Info, Brain,
   Award, MessageSquare, FileText, Handshake, IndianRupee,
-  ShieldCheck, Lock, XCircle,
+  ShieldCheck, Lock, XCircle, BarChart2,
 } from 'lucide-react';
+import {
+  LineChart, Line, BarChart, Bar, ResponsiveContainer, XAxis, YAxis, CartesianGrid,
+  Tooltip, ReferenceLine, Cell,
+} from 'recharts';
 import { API_BASE } from '../App';
 
 const RISK_COLOR = { LOW: 'var(--risk-low)', MEDIUM: 'var(--risk-medium)', HIGH: 'var(--risk-high)' };
@@ -464,6 +468,183 @@ function RecruiterMatchesTab({ studentId }) {
   );
 }
 
+// ─── Shared recharts tooltip ─────────────────────────────────────────────────
+function ChartTip({ active, payload, label, unit = '' }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: 'var(--card-raised)', border: '1px solid var(--card-edge-strong)', borderLeft: '3px solid var(--signal)', borderRadius: '2px', padding: '0.65rem 0.9rem', fontSize: '0.78rem', boxShadow: 'var(--shadow-raised)', minWidth: 120 }}>
+      <div style={{ color: 'var(--ink-faint)', fontSize: '0.62rem', textTransform: 'uppercase', letterSpacing: '0.15em', fontWeight: 700, marginBottom: '5px' }}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ color: p.color || 'var(--ink)', fontWeight: 600, fontFamily: 'var(--font-mono)' }}>
+          {p.value}{unit} <span style={{ color: 'var(--ink-muted)', fontFamily: 'var(--font-sans)', fontWeight: 400 }}>{p.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Graphs tab ───────────────────────────────────────────────────────────────
+function StudentGraphsTab({ studentId, profile, analysis }) {
+  const [history,   setHistory]   = useState(null);
+  const [loadingH,  setLoadingH]  = useState(true);
+
+  useEffect(() => {
+    axios.get(`${API_BASE}/api/v1/student/${studentId}/history`)
+      .then(r => setHistory(r.data))
+      .catch(() => {})
+      .finally(() => setLoadingH(false));
+  }, [studentId]);
+
+  const pred    = analysis?.prediction    || {};
+  const explain = analysis?.explainability || {};
+  const probs   = pred.placement_probability || {};
+
+  // ── 1. Placement probability timeline (3m / 6m / 12m from history) ────────
+  const timelineData = (history?.snapshots || []).map(snap => ({
+    date:  snap.date?.slice(5),     // MM-DD
+    prob:  Math.round((snap.placement_probability_6m || 0) * 100),
+    band:  snap.risk_band,
+  }));
+
+  // ── 2. Tri-horizon bar (current snapshot) ─────────────────────────────────
+  const horizonData = [
+    { horizon: '3 months',  prob: Math.round((probs['3m']  || 0) * 100), fill: '#A82828' },
+    { horizon: '6 months',  prob: Math.round((probs['6m']  || 0) * 100), fill: '#A5751F' },
+    { horizon: '12 months', prob: Math.round((probs['12m'] || 0) * 100), fill: '#2F6E45' },
+  ];
+
+  // ── 3. Feature contribution bar (SHAP drivers) ────────────────────────────
+  const shapData = (explain.top_drivers || []).map(d => ({
+    name:  d.readable_name,
+    value: Math.abs(d.shap_value || 0),
+    sign:  d.impact_direction === 'Positive' ? 1 : -1,
+    fill:  d.impact_direction === 'Positive' ? '#2F6E45' : '#A82828',
+  }));
+
+  // ── 4. Risk history band trend bar ────────────────────────────────────────
+  const bandValue = { HIGH: 1, MEDIUM: 2, LOW: 3 };
+  const bandColor = { HIGH: '#A82828', MEDIUM: '#A5751F', LOW: '#2F6E45' };
+  const trendData = timelineData.map(t => ({
+    date: t.date,
+    band: bandValue[t.band] || 2,
+    fill: bandColor[t.band] || '#A5751F',
+    label: t.band,
+  }));
+
+  const cardStyle = { marginBottom: '1.25rem', overflow: 'hidden' };
+
+  return (
+    <div>
+      <div className="grid-2" style={{ marginBottom: '1.25rem' }}>
+
+        {/* Placement probability timeline */}
+        <div className="card" style={cardStyle}>
+          <div className="card-title" style={{ marginBottom: '0.85rem' }}>
+            <Activity size={13} /> 6-Month Placement Probability — 90-day trend
+          </div>
+          {loadingH ? (
+            <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-muted)' }}>
+              <Activity size={14} style={{ animation: 'spin 1s linear infinite', marginRight: 8 }}/>Loading history…
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={timelineData} margin={{ left: -15, right: 8 }}>
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--rule)" vertical={false}/>
+                <XAxis dataKey="date" tick={{ fill: 'var(--ink-faint)', fontSize: 10 }} axisLine={false} tickLine={false}/>
+                <YAxis domain={[0, 100]} tick={{ fill: 'var(--ink-faint)', fontSize: 10, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`}/>
+                <Tooltip content={<ChartTip unit="%" />}/>
+                <ReferenceLine y={70} stroke="var(--risk-low)"    strokeDasharray="3 3" label={{ value: 'LOW', fill: 'var(--risk-low)', fontSize: 9, position: 'right' }}/>
+                <ReferenceLine y={45} stroke="var(--risk-medium)" strokeDasharray="3 3" label={{ value: 'MED', fill: 'var(--risk-medium)', fontSize: 9, position: 'right' }}/>
+                <Line type="monotone" dataKey="prob" stroke="var(--signal)" strokeWidth={2} dot={{ r: 2, fill: 'var(--signal)' }} name="6m prob"/>
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+          {history && (
+            <div style={{ fontSize: '0.72rem', color: 'var(--ink-faint)', marginTop: '0.5rem', display: 'flex', gap: '1rem' }}>
+              <span>Trend: <strong style={{ color: history.trend === 'IMPROVING' ? 'var(--risk-low)' : 'var(--risk-high)' }}>{history.trend}</strong></span>
+              <span>Window: {history.history_window_days} days</span>
+            </div>
+          )}
+        </div>
+
+        {/* Tri-horizon bar */}
+        <div className="card" style={cardStyle}>
+          <div className="card-title" style={{ marginBottom: '0.85rem' }}>
+            <BarChart2 size={13} /> Placement Probability by Horizon
+          </div>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={horizonData} margin={{ left: -15, right: 8 }}>
+              <CartesianGrid strokeDasharray="2 4" stroke="var(--rule)" vertical={false}/>
+              <XAxis dataKey="horizon" tick={{ fill: 'var(--ink-faint)', fontSize: 10 }} axisLine={false} tickLine={false}/>
+              <YAxis domain={[0, 100]} tick={{ fill: 'var(--ink-faint)', fontSize: 10, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`}/>
+              <Tooltip content={<ChartTip unit="%" />}/>
+              <Bar dataKey="prob" radius={[2,2,0,0]} name="probability">
+                {horizonData.map((d, i) => <Cell key={i} fill={d.fill}/>)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* SHAP drivers bar */}
+        <div className="card" style={cardStyle}>
+          <div className="card-title" style={{ marginBottom: '0.85rem' }}>
+            <Zap size={13} /> Feature Contributions (SHAP values)
+          </div>
+          {shapData.length === 0 ? (
+            <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-faint)', fontSize: '0.82rem' }}>No SHAP data available.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={140}>
+              <BarChart data={shapData} layout="vertical" margin={{ left: 0, right: 8 }}>
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--rule)" horizontal={false}/>
+                <XAxis type="number" tick={{ fill: 'var(--ink-faint)', fontSize: 9, fontFamily: 'var(--font-mono)' }} axisLine={false} tickLine={false}/>
+                <YAxis type="category" dataKey="name" width={115} tick={{ fill: 'var(--ink-soft)', fontSize: 10 }} axisLine={false} tickLine={false}/>
+                <Tooltip content={<ChartTip />}/>
+                <Bar dataKey="value" radius={[0,2,2,0]} name="SHAP |value|">
+                  {shapData.map((d, i) => <Cell key={i} fill={d.fill}/>)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.7rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2F6E45', display: 'inline-block' }}/> Positive impact</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#A82828', display: 'inline-block' }}/> Negative impact</span>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Risk band history strip */}
+      {trendData.length > 0 && (
+        <div className="card">
+          <div className="card-title" style={{ marginBottom: '0.85rem' }}><TrendingUp size={13}/> Risk Band History — 90 days</div>
+          <ResponsiveContainer width="100%" height={80}>
+            <BarChart data={trendData} barCategoryGap="10%" margin={{ left: -15, right: 8 }}>
+              <XAxis dataKey="date" tick={{ fill: 'var(--ink-faint)', fontSize: 9 }} axisLine={false} tickLine={false}/>
+              <YAxis hide domain={[0, 3.5]}/>
+              <Tooltip
+                content={({ active, payload, label }) => active && payload?.length ? (
+                  <div style={{ background: 'var(--card-raised)', border: '1px solid var(--card-edge)', padding: '0.4rem 0.65rem', fontSize: '0.76rem' }}>
+                    <div style={{ color: 'var(--ink-faint)', fontSize: '0.6rem', marginBottom: '2px' }}>{label}</div>
+                    <div style={{ fontWeight: 700, color: payload[0]?.payload?.fill }}>{payload[0]?.payload?.label}</div>
+                  </div>
+                ) : null}
+              />
+              <Bar dataKey="band" radius={[2,2,0,0]}>
+                {trendData.map((d, i) => <Cell key={i} fill={d.fill}/>)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <div style={{ display: 'flex', gap: '1.25rem', marginTop: '0.5rem', fontSize: '0.7rem', color: 'var(--ink-faint)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '8px', height: '8px', borderRadius: '1px', background: '#2F6E45', display: 'inline-block' }}/> LOW</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '8px', height: '8px', borderRadius: '1px', background: '#A5751F', display: 'inline-block' }}/> MEDIUM</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '8px', height: '8px', borderRadius: '1px', background: '#A82828', display: 'inline-block' }}/> HIGH</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Verification panel (lender view) ────────────────────────────────────────
 function VChip({ status, label }) {
   const cfg = {
@@ -668,6 +849,7 @@ function StudentProfile() {
 
   const tabs = [
     { id: 'analysis',      label: 'Risk Analysis' },
+    { id: 'graphs',        label: 'Graphs & Trends' },
     { id: 'verification',  label: `Verification${conf ? ` · ${conf.score}/100` : ''}` },
     { id: 'explainability',label: 'AI Explainability' },
     { id: 'simulator',     label: 'Intervention Simulator ⭐' },
@@ -813,6 +995,10 @@ function StudentProfile() {
             ))}
           </div>
         </div>
+      )}
+
+      {activeTab === 'graphs' && (
+        <StudentGraphsTab studentId={id} profile={profile} analysis={analysis} />
       )}
 
       {activeTab === 'verification' && (
