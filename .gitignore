@@ -23,7 +23,7 @@ ENV/
 !backend/models/.gitkeep
 
 # ─── Data (regenerate with data_generator.py) ────────────────
-backend/data/*.csv
+# backend/data/*.csv
 # Runtime stores — credentials + college/portfolio mutations (not for VCS)
 backend/data/accounts.json
 backend/data/college_data.json

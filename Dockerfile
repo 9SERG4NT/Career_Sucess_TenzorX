@@ -29,7 +29,7 @@ COPY backend/ ./
 
 # Generate the data and pre-trained models natively inside the container 
 # to avoid Python 3.10 vs 3.13 pickle serialization incompatibilities
-RUN python data_generator.py && python amcat_mapper.py && python model_pipeline.py --source combined
+RUN python data_generator.py && python model_pipeline.py --source combined
 
 # Copy built frontend to backend/static
 COPY --from=frontend-builder /app/frontend/dist ./static
