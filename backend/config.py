@@ -38,10 +38,11 @@ PROVIDER_REGISTRY = {
     },
     "huggingface": {
         # HF Inference Providers router — OpenAI-compatible chat completions.
-        # google/gemma-3-4b-it routes to a provider that does NOT consume the
-        # monthly Inference-Provider credit allowance — works on the free token.
+        # meta-llama/Llama-3.1-8B-Instruct is confirmed to work on the HF router
+        # with the free token (no monthly credit consumption).
+        # Gemma models are text-gen only — NOT chat-compatible on HF router.
         "base_url": "https://router.huggingface.co/v1",
-        "default_model": "google/gemma-3-4b-it",
+        "default_model": "meta-llama/Llama-3.1-8B-Instruct",
         "tool_format": "openai",
         "api_key_env": "HF_TOKEN",
     },
