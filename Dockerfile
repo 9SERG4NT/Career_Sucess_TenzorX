@@ -10,8 +10,15 @@ RUN npm run build
 FROM python:3.10-slim
 WORKDIR /app/backend
 
+# Install system dependencies that might be required by ML libraries like lightgbm or xgboost
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install backend dependencies
 COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install huggingface_hub for python (if not in requirements, good to have)
