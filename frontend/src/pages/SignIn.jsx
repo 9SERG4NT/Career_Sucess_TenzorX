@@ -45,8 +45,8 @@ export default function SignIn() {
   const initialRole = ['admin', 'college', 'student'].includes(roleParam) ? roleParam : 'student';
 
   const [role, setRole] = useState(initialRole);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState(CREDS[initialRole].username);
+  const [password, setPassword] = useState(CREDS[initialRole].password);
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -156,7 +156,7 @@ export default function SignIn() {
                   type="button"
                   key={r.id}
                   className={`signin-role ${active ? 'active' : ''}`}
-                  onClick={() => { setRole(r.id); setUsername(''); setPassword(''); }}
+                  onClick={() => { setRole(r.id); setUsername(CREDS[r.id].username); setPassword(CREDS[r.id].password); }}
                 >
                   <div className="signin-role-icon">
                     <r.icon size={18} />
