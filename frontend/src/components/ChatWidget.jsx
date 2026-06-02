@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
 import { MessageCircle, X, Send, Sparkles, Bot, ShieldCheck } from 'lucide-react';
 import { API_BASE } from '../App';
 
@@ -203,18 +204,40 @@ export default function ChatWidget({ scope = 'public', studentId = null }) {
   );
 }
 
+const mdComponents = {
+  p:      ({ children }) => <p style={{ margin: '0 0 0.5em', lineHeight: 1.55 }}>{children}</p>,
+  strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
+  em:     ({ children }) => <em style={{ fontStyle: 'italic' }}>{children}</em>,
+  ul:     ({ children }) => <ul style={{ margin: '0.3em 0 0.55em', paddingLeft: '1.3em', listStyle: 'disc' }}>{children}</ul>,
+  ol:     ({ children }) => <ol style={{ margin: '0.3em 0 0.55em', paddingLeft: '1.3em', listStyle: 'decimal' }}>{children}</ol>,
+  li:     ({ children }) => <li style={{ marginBottom: '0.2em', lineHeight: 1.5 }}>{children}</li>,
+  code:   ({ inline, children }) => inline
+    ? <code style={{ fontFamily: 'monospace', fontSize: '0.82em', background: 'rgba(0,0,0,0.08)', borderRadius: '3px', padding: '1px 5px' }}>{children}</code>
+    : <pre style={{ fontFamily: 'monospace', fontSize: '0.8em', background: 'rgba(0,0,0,0.06)', borderRadius: '6px', padding: '0.6em 0.8em', overflowX: 'auto', margin: '0.4em 0' }}><code>{children}</code></pre>,
+  h1: ({ children }) => <div style={{ fontWeight: 800, fontSize: '1em', marginBottom: '0.35em' }}>{children}</div>,
+  h2: ({ children }) => <div style={{ fontWeight: 700, fontSize: '0.95em', marginBottom: '0.3em' }}>{children}</div>,
+  h3: ({ children }) => <div style={{ fontWeight: 700, fontSize: '0.9em', marginBottom: '0.25em' }}>{children}</div>,
+  hr: () => <hr style={{ border: 'none', borderTop: '1px solid rgba(0,0,0,0.1)', margin: '0.5em 0' }} />,
+  a:  ({ href, children }) => <a href={href} target="_blank" rel="noreferrer" style={{ color: 'var(--signal, #C2410C)', textDecoration: 'underline' }}>{children}</a>,
+  blockquote: ({ children }) => <blockquote style={{ borderLeft: '3px solid rgba(0,0,0,0.15)', paddingLeft: '0.75em', margin: '0.3em 0', color: 'rgba(0,0,0,0.6)', fontStyle: 'italic' }}>{children}</blockquote>,
+};
+
 function Bubble({ who, children }) {
   const isUser = who === 'user';
+  const text = typeof children === 'string' ? children : '';
   return (
     <div style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
       <div style={{
-        maxWidth: '85%', fontSize: '0.85rem', lineHeight: 1.45, whiteSpace: 'pre-wrap',
+        maxWidth: '85%', fontSize: '0.85rem',
         padding: '9px 12px', borderRadius: isUser ? '12px 12px 3px 12px' : '12px 12px 12px 3px',
         background: isUser ? 'var(--navy, #1B2C5E)' : 'var(--card-raised, #fff)',
         color: isUser ? '#fff' : 'var(--ink, #1A1A1A)',
         border: isUser ? 'none' : '1px solid var(--card-edge, rgba(0,0,0,0.12))',
       }}>
-        {children}
+        {isUser
+          ? <span style={{ whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{text}</span>
+          : <div className="chat-md"><ReactMarkdown components={mdComponents}>{text}</ReactMarkdown></div>
+        }
       </div>
     </div>
   );

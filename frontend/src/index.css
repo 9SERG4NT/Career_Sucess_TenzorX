@@ -3320,3 +3320,6 @@ textarea.select-input { padding: 0.7rem 0.9rem; min-height: 84px; }
   .notif-panel { width: calc(100vw - 1.5rem); }
   .btn { padding: 0.55rem 0.95rem; font-size: 0.72rem; }
 }
+
+/* Chat bubble markdown — kill trailing paragraph gap */
+.chat-md > p:last-child { margin-bottom: 0 !important; }

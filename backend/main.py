@@ -1,5 +1,5 @@
 import math
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -1086,6 +1086,99 @@ async def update_student(student_id: str, req: StudentUpdate):
         "updated_fields": list(updates.keys()),
         "rescored": True,
     })
+
+
+# ─── Resume Parser + ATS Scorer ─────────────────────────────────────────────
+
+JOB_PROFILES = [
+    "Software Engineer – Backend",
+    "Software Engineer – Frontend / Full-Stack",
+    "Data Analyst",
+    "Data Scientist / ML Engineer",
+    "Business Analyst",
+    "Product Manager",
+    "Finance Analyst / Investment Banking",
+    "Marketing Manager",
+    "Human Resources Manager",
+    "Operations Manager",
+    "Supply Chain Analyst",
+    "Healthcare Administrator",
+    "Clinical Research Associate",
+    "Embedded Systems / Hardware Engineer",
+    "DevOps / Cloud Engineer",
+]
+
+
+@app.get("/api/v1/resume/job-profiles")
+async def get_job_profiles():
+    """Return the list of job profiles available for ATS scoring."""
+    return {"profiles": JOB_PROFILES}
+
+
+@app.post("/api/v1/student/{student_id}/resume/parse")
+async def resume_parse(student_id: str, file: UploadFile = File(...)):
+    """Upload a PDF or DOCX resume, extract text, and return structured profile
+    fields that the borrower can review and apply to their profile."""
+    from resume_parser import extract_text, parse_resume as _parse
+
+    allowed = {
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+        "text/plain",
+    }
+    ct = (file.content_type or "").lower()
+    if ct not in allowed and not ct.startswith("application/pdf"):
+        raise HTTPException(
+            status_code=415,
+            detail="Unsupported file type. Upload a PDF, DOCX, or plain-text resume.",
+        )
+
+    raw = await file.read()
+    if len(raw) > 5 * 1024 * 1024:  # 5 MB hard cap
+        raise HTTPException(status_code=413, detail="File too large (max 5 MB).")
+
+    try:
+        resume_text = extract_text(raw, ct)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    parsed = _parse(resume_text)
+    if "_error" in parsed and "parsed" not in parsed:
+        raise HTTPException(status_code=502, detail=f"Parse failed: {parsed['_error']}")
+
+    return sanitize({
+        "student_id": student_id,
+        "resume_text": resume_text,        # returned so ATS call reuses it (no re-upload)
+        "char_count": len(resume_text),
+        "parsed": parsed,
+    })
+
+
+class ATSRequest(BaseModel):
+    resume_text: str
+    job_profile: str
+
+
+@app.post("/api/v1/student/{student_id}/resume/ats-score")
+async def resume_ats_score(student_id: str, req: ATSRequest):
+    """Score a resume (as plain text) against a named job profile and return
+    keyword match, skills alignment, experience relevance, and recommendations."""
+    from resume_parser import ats_score as _ats
+
+    if req.job_profile not in JOB_PROFILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown job profile. Choose from: {', '.join(JOB_PROFILES)}",
+        )
+    if not req.resume_text.strip():
+        raise HTTPException(status_code=400, detail="resume_text is empty.")
+
+    result = _ats(req.resume_text, req.job_profile)
+    if "_error" in result and result.get("overall_score", 0) == 0:
+        raise HTTPException(status_code=502, detail=f"ATS scoring failed: {result['_error']}")
+
+    return sanitize({"student_id": student_id, **result})
 
 
 # ─── Verification Layer (anti-fraud / self-report bias) ─────────────────────

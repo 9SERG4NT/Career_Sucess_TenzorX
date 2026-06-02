@@ -4,7 +4,7 @@ import {
   User, GraduationCap, Briefcase, Target, Save, Plus, X, RefreshCw,
   CheckCircle2, AlertTriangle, ShieldAlert, TrendingUp, TrendingDown,
   Info, Award, Code2, MessageSquare, Wrench, Minus, ShieldCheck, Lock,
-  Clock, XCircle,
+  Clock, XCircle, FileText, Upload, Sparkles, BarChart2,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { API_BASE } from '../../App';
@@ -16,6 +16,7 @@ const TABS = [
   { id: 'employability', label: 'Employability',  icon: Briefcase   },
   { id: 'placement',     label: 'Placement',      icon: Target      },
   { id: 'verification',  label: 'Verification',   icon: ShieldCheck },
+  { id: 'resume',        label: 'Resume & ATS',   icon: FileText    },
 ];
 const INTERNSHIP_TIERS    = ['MNC', 'Unicorn', 'MidSize', 'Startup', 'Other'];
 const INTERVIEW_STATUSES  = ['', 'Applied', 'Shortlisted', 'Interview Scheduled', 'Selected', 'Offer Received', 'Rejected'];
@@ -1141,6 +1142,437 @@ function VerificationTab({ sid, richProfile, initialVerif, onVerifUpdate }) {
   );
 }
 
+// ─── Tab: Resume & ATS ───────────────────────────────────────────────────────
+const JOB_PROFILES = [
+  'Software Engineer – Backend',
+  'Software Engineer – Frontend / Full-Stack',
+  'Data Analyst',
+  'Data Scientist / ML Engineer',
+  'Business Analyst',
+  'Product Manager',
+  'Finance Analyst / Investment Banking',
+  'Marketing Manager',
+  'Human Resources Manager',
+  'Operations Manager',
+  'Supply Chain Analyst',
+  'Healthcare Administrator',
+  'Clinical Research Associate',
+  'Embedded Systems / Hardware Engineer',
+  'DevOps / Cloud Engineer',
+];
+
+const gradeColor = g => {
+  if (!g) return 'var(--ink-faint)';
+  if (g.startsWith('A')) return 'var(--risk-low)';
+  if (g.startsWith('B')) return 'var(--signal)';
+  if (g.startsWith('C')) return 'var(--risk-medium)';
+  return 'var(--risk-high)';
+};
+
+function ScoreBar({ label, score, max = 100 }) {
+  const pct = Math.min(100, Math.round((score / max) * 100));
+  const color = pct >= 70 ? 'var(--risk-low)' : pct >= 50 ? 'var(--signal)' : 'var(--risk-high)';
+  return (
+    <div style={{ marginBottom: '0.65rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', marginBottom: '0.25rem' }}>
+        <span style={{ color: 'var(--ink-muted)' }}>{label}</span>
+        <span className="mono" style={{ fontWeight: 700, color }}>{score}<span style={{ color: 'var(--ink-faint)', fontWeight: 400 }}>/100</span></span>
+      </div>
+      <div style={{ height: '5px', background: 'var(--paper-deep)', borderRadius: '3px', overflow: 'hidden', border: '1px solid var(--card-edge)' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: '3px', transition: 'width 0.5s ease' }} />
+      </div>
+    </div>
+  );
+}
+
+function ResumeTab({ data, onChange, studentId }) {
+  const [file,        setFile]       = useState(null);
+  const [dragging,    setDragging]   = useState(false);
+  const [parsing,     setParsing]    = useState(false);
+  const [parsed,      setParsed]     = useState(null);
+  const [resumeText,  setResumeText] = useState('');
+  const [parseErr,    setParseErr]   = useState(null);
+  const [applied,     setApplied]    = useState(false);
+
+  const [jobProfile,  setJobProfile] = useState('');
+  const [scoring,     setScoring]    = useState(false);
+  const [atsResult,   setAtsResult]  = useState(null);
+  const [atsErr,      setAtsErr]     = useState(null);
+
+  const fileInputRef = useState(null);
+
+  const pickFile = f => {
+    if (!f) return;
+    const ok = ['application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain'].includes(f.type) || f.name.endsWith('.pdf') || f.name.endsWith('.docx');
+    if (!ok) { setParseErr('Please upload a PDF, DOCX, or plain-text file.'); return; }
+    setFile(f);
+    setParsed(null);
+    setResumeText('');
+    setParseErr(null);
+    setAtsResult(null);
+    setAtsErr(null);
+    setApplied(false);
+  };
+
+  const handleDrop = e => {
+    e.preventDefault();
+    setDragging(false);
+    pickFile(e.dataTransfer.files?.[0]);
+  };
+
+  const handleParse = async () => {
+    if (!file) return;
+    setParsing(true);
+    setParseErr(null);
+    setParsed(null);
+    setAtsResult(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await axios.post(`${API_BASE}/api/v1/student/${studentId}/resume/parse`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setParsed(r.data.parsed);
+      setResumeText(r.data.resume_text || '');
+    } catch (e) {
+      setParseErr(e?.response?.data?.detail || 'Parse failed — check that the backend is running and an LLM key is set.');
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const applyParsed = () => {
+    if (!parsed || !onChange) return;
+    const p = parsed;
+    const updated = { ...data };
+    // Personal
+    if (p.full_name)       updated.full_name       = p.full_name;
+    if (p.email)           updated.email           = p.email;
+    if (p.mobile)          updated.mobile          = p.mobile;
+    if (p.city)            updated.city            = p.city;
+    if (p.state)           updated.state           = p.state;
+    if (p.graduation_year) updated.graduation_year = p.graduation_year;
+    // Academic
+    if (p.cgpa)            updated.cgpa            = p.cgpa;
+    if (p.achievements?.length) updated.achievements = p.achievements;
+    if (p.coding_problems_solved != null) updated.coding_problems_solved = p.coding_problems_solved;
+    if (p.hackathons_attended    != null) updated.hackathons_attended    = p.hackathons_attended;
+    // Skills
+    if (p.skills) updated.skills = {
+      languages: p.skills.languages?.length ? p.skills.languages : (data.skills?.languages || []),
+      technical: p.skills.technical?.length ? p.skills.technical : (data.skills?.technical || []),
+      tools:     p.skills.tools?.length     ? p.skills.tools     : (data.skills?.tools     || []),
+      soft:      p.skills.soft?.length      ? p.skills.soft      : (data.skills?.soft      || []),
+    };
+    // Employability lists — merge, don't overwrite if resume had none
+    if (p.internships?.length)    updated.internships    = p.internships;
+    if (p.certifications?.length) updated.certifications = p.certifications;
+    if (p.projects?.length)       updated.projects       = p.projects;
+    onChange(updated);
+    setApplied(true);
+  };
+
+  const handleAtsScore = async () => {
+    if (!resumeText || !jobProfile) return;
+    setScoring(true);
+    setAtsErr(null);
+    setAtsResult(null);
+    try {
+      const r = await axios.post(`${API_BASE}/api/v1/student/${studentId}/resume/ats-score`, {
+        resume_text: resumeText,
+        job_profile: jobProfile,
+      });
+      setAtsResult(r.data);
+    } catch (e) {
+      setAtsErr(e?.response?.data?.detail || 'ATS scoring failed — check that an LLM API key is configured.');
+    } finally {
+      setScoring(false);
+    }
+  };
+
+  const bd = atsResult?.breakdown || {};
+
+  return (
+    <div>
+      {/* ── Upload zone ─────────────────────────────────────────────────── */}
+      <div className="card" style={{ marginBottom: '1rem' }}>
+        <div className="card-title" style={{ marginBottom: '0.85rem' }}><Upload size={13}/> Upload Resume</div>
+
+        {/* Drop zone */}
+        <div
+          onDragOver={e => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => document.getElementById('resume-file-input').click()}
+          style={{
+            border: `2px dashed ${dragging ? 'var(--accent-primary)' : 'var(--card-edge-strong)'}`,
+            borderRadius: '6px',
+            padding: '2.5rem 1.5rem',
+            textAlign: 'center',
+            cursor: 'pointer',
+            background: dragging ? 'rgba(var(--accent-primary-rgb, 30,100,220),0.04)' : 'var(--paper-deep)',
+            transition: 'border-color 0.2s, background 0.2s',
+            marginBottom: '1rem',
+          }}
+        >
+          <FileText size={32} color="var(--ink-faint)" style={{ marginBottom: '0.65rem' }} />
+          <div style={{ fontWeight: 600, color: 'var(--ink)', fontSize: '0.9rem', marginBottom: '0.3rem' }}>
+            {file ? file.name : 'Drop your resume here'}
+          </div>
+          <div style={{ fontSize: '0.74rem', color: 'var(--ink-faint)' }}>
+            {file ? `${(file.size / 1024).toFixed(0)} KB · click to change` : 'PDF or DOCX · click to browse · max 5 MB'}
+          </div>
+          <input
+            id="resume-file-input"
+            type="file"
+            accept=".pdf,.docx,.txt"
+            style={{ display: 'none' }}
+            onChange={e => pickFile(e.target.files?.[0])}
+          />
+        </div>
+
+        {parseErr && (
+          <div style={{ padding: '0.5rem 0.75rem', background: 'rgba(168,40,40,0.07)', border: '1px solid rgba(168,40,40,0.2)', borderRadius: '3px', fontSize: '0.8rem', color: 'var(--risk-high)', marginBottom: '0.75rem', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+            <AlertTriangle size={13} style={{ marginTop: '1px', flexShrink: 0 }}/>{parseErr}
+          </div>
+        )}
+
+        <button
+          className="btn btn-primary"
+          onClick={handleParse}
+          disabled={!file || parsing}
+          style={{ opacity: (!file || parsing) ? 0.5 : 1 }}
+        >
+          {parsing
+            ? <><RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }}/> Parsing…</>
+            : <><Sparkles size={14}/> Parse &amp; Autofill Profile</>}
+        </button>
+        <p style={{ marginTop: '0.55rem', fontSize: '0.72rem', color: 'var(--ink-faint)', lineHeight: 1.5 }}>
+          The AI reads your resume and pre-fills Personal, Academic, and Employability fields.
+          Review the preview below before applying.
+        </p>
+      </div>
+
+      {/* ── Parsed preview ──────────────────────────────────────────────── */}
+      {parsed && !parsed._error && (
+        <div className="card animate-fade-up" style={{ marginBottom: '1rem', borderLeft: '4px solid var(--risk-low)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div className="card-title"><CheckCircle2 size={13} color="var(--risk-low)"/> Resume parsed — review before applying</div>
+            {applied && (
+              <span style={{ fontSize: '0.72rem', color: 'var(--risk-low)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <CheckCircle2 size={11}/> Applied to profile
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.5rem 1.5rem', marginBottom: '1rem' }}>
+            {[
+              ['Name',        parsed.full_name],
+              ['Email',       parsed.email],
+              ['Mobile',      parsed.mobile],
+              ['City / State', [parsed.city, parsed.state].filter(Boolean).join(', ')],
+              ['CGPA',        parsed.cgpa],
+              ['Graduation',  parsed.graduation_year],
+            ].map(([label, val]) => val ? (
+              <div key={label} style={{ fontSize: '0.82rem' }}>
+                <span style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--ink-faint)', display: 'block', marginBottom: '2px' }}>{label}</span>
+                <span style={{ color: 'var(--ink)', fontWeight: 500 }}>{String(val)}</span>
+              </div>
+            ) : null)}
+          </div>
+
+          {/* Skills chips */}
+          {Object.entries(parsed.skills || {}).some(([, v]) => v?.length > 0) && (
+            <div style={{ marginBottom: '0.85rem' }}>
+              <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--ink-faint)', marginBottom: '0.4rem' }}>Skills extracted</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                {[...(parsed.skills.languages || []), ...(parsed.skills.technical || []), ...(parsed.skills.tools || [])].slice(0, 20).map(s => (
+                  <span key={s} style={{ fontSize: '0.72rem', padding: '2px 8px', background: 'var(--paper-deep)', border: '1px solid var(--card-edge)', borderRadius: '2px', color: 'var(--ink)' }}>{s}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Counts */}
+          <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1rem', fontSize: '0.82rem', color: 'var(--ink-muted)' }}>
+            {parsed.internships?.length > 0 && <span><strong style={{ color: 'var(--ink)' }}>{parsed.internships.length}</strong> internship{parsed.internships.length > 1 ? 's' : ''}</span>}
+            {parsed.certifications?.length > 0 && <span><strong style={{ color: 'var(--ink)' }}>{parsed.certifications.length}</strong> certification{parsed.certifications.length > 1 ? 's' : ''}</span>}
+            {parsed.projects?.length > 0 && <span><strong style={{ color: 'var(--ink)' }}>{parsed.projects.length}</strong> project{parsed.projects.length > 1 ? 's' : ''}</span>}
+            {parsed.achievements?.length > 0 && <span><strong style={{ color: 'var(--ink)' }}>{parsed.achievements.length}</strong> achievement{parsed.achievements.length > 1 ? 's' : ''}</span>}
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-primary"
+              onClick={applyParsed}
+              disabled={applied}
+              style={{ opacity: applied ? 0.5 : 1 }}
+            >
+              <CheckCircle2 size={14}/> {applied ? 'Applied' : 'Apply to Profile'}
+            </button>
+            <button className="btn btn-ghost" onClick={() => { setParsed(null); setApplied(false); }}>
+              <X size={14}/> Discard
+            </button>
+          </div>
+          {applied && (
+            <p style={{ marginTop: '0.5rem', fontSize: '0.72rem', color: 'var(--ink-faint)' }}>
+              Fields populated — switch to Personal / Academic / Employability tabs to review, then save each tab.
+            </p>
+          )}
+        </div>
+      )}
+
+      {parsed?._error && (
+        <div style={{ padding: '0.6rem 0.9rem', background: 'rgba(168,40,40,0.07)', border: '1px solid rgba(168,40,40,0.2)', borderRadius: '3px', fontSize: '0.8rem', color: 'var(--risk-high)', marginBottom: '1rem' }}>
+          <AlertTriangle size={12} style={{ verticalAlign: '-2px', marginRight: '5px' }}/>Parse error: {parsed._error}
+        </div>
+      )}
+
+      {/* ── ATS Scoring ──────────────────────────────────────────────────── */}
+      <div className="card">
+        <div className="card-title" style={{ marginBottom: '0.85rem' }}><BarChart2 size={13}/> ATS Score</div>
+        <p style={{ fontSize: '0.8rem', color: 'var(--ink-muted)', marginBottom: '1rem', lineHeight: 1.55 }}>
+          Select a target job profile and score your resume against what recruiters' ATS systems look for.
+          Upload and parse your resume first — the text carries over automatically.
+        </p>
+
+        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '1rem' }}>
+          <div style={{ flex: 1, minWidth: '220px' }}>
+            <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--ink-faint)', marginBottom: '0.4rem' }}>Target job profile</div>
+            <select
+              className="select-input"
+              value={jobProfile}
+              onChange={e => setJobProfile(e.target.value)}
+              style={{ width: '100%' }}
+            >
+              <option value="">— Select a role —</option>
+              {JOB_PROFILES.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={handleAtsScore}
+            disabled={!resumeText || !jobProfile || scoring}
+            style={{ opacity: (!resumeText || !jobProfile || scoring) ? 0.5 : 1, flexShrink: 0 }}
+          >
+            {scoring
+              ? <><RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }}/> Scoring…</>
+              : <><BarChart2 size={14}/> Score Resume</>}
+          </button>
+        </div>
+        {!resumeText && (
+          <p style={{ fontSize: '0.72rem', color: 'var(--risk-medium)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Info size={12}/> Parse your resume above first to enable ATS scoring.
+          </p>
+        )}
+
+        {atsErr && (
+          <div style={{ padding: '0.5rem 0.75rem', background: 'rgba(168,40,40,0.07)', border: '1px solid rgba(168,40,40,0.2)', borderRadius: '3px', fontSize: '0.8rem', color: 'var(--risk-high)', marginTop: '0.5rem' }}>
+            <AlertTriangle size={12} style={{ verticalAlign: '-2px', marginRight: '5px' }}/>{atsErr}
+          </div>
+        )}
+
+        {/* ATS result */}
+        {atsResult && !atsResult._error && (
+          <div className="animate-fade-up" style={{ marginTop: '1.25rem' }}>
+
+            {/* Hero score */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', flexWrap: 'wrap', padding: '1rem 1.25rem', background: 'var(--paper-deep)', border: `1px solid ${gradeColor(atsResult.grade)}44`, borderRadius: '6px', marginBottom: '1.25rem' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '3.5rem', lineHeight: 1, color: gradeColor(atsResult.grade), fontWeight: 400 }}>
+                  {atsResult.overall_score}
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>/ 100</div>
+              </div>
+              <div>
+                <div style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', color: gradeColor(atsResult.grade), fontWeight: 400, lineHeight: 1, marginBottom: '0.25rem' }}>
+                  {atsResult.grade}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--ink-muted)' }}>vs. <strong style={{ color: 'var(--ink)' }}>{atsResult.job_profile}</strong></div>
+              </div>
+            </div>
+
+            {/* Score bars */}
+            <div style={{ marginBottom: '1.25rem' }}>
+              <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--ink-faint)', marginBottom: '0.75rem' }}>Score breakdown</div>
+              <ScoreBar label="Keyword Match (30%)"        score={bd.keyword_match?.score        ?? 0} />
+              <ScoreBar label="Skills Alignment (25%)"     score={bd.skills_alignment?.score     ?? 0} />
+              <ScoreBar label="Experience Relevance (20%)" score={bd.experience_relevance?.score ?? 0} />
+              <ScoreBar label="Education Match (15%)"      score={bd.education_match?.score      ?? 0} />
+              <ScoreBar label="Quantified Impact (10%)"    score={bd.quantified_impact?.score    ?? 0} />
+            </div>
+
+            {/* Missing keywords */}
+            {bd.keyword_match?.missing_keywords?.length > 0 && (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--risk-high)', marginBottom: '0.4rem' }}>Missing keywords</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {bd.keyword_match.missing_keywords.map(k => (
+                    <span key={k} style={{ fontSize: '0.72rem', padding: '2px 8px', background: 'rgba(168,40,40,0.07)', border: '1px solid rgba(168,40,40,0.2)', borderRadius: '2px', color: 'var(--risk-high)' }}>{k}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Found keywords */}
+            {bd.keyword_match?.found_keywords?.length > 0 && (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--risk-low)', marginBottom: '0.4rem' }}>Matched keywords</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {bd.keyword_match.found_keywords.map(k => (
+                    <span key={k} style={{ fontSize: '0.72rem', padding: '2px 8px', background: 'rgba(47,110,69,0.07)', border: '1px solid rgba(47,110,69,0.2)', borderRadius: '2px', color: 'var(--risk-low)' }}>{k}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Strengths & Gaps */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              {atsResult.strengths?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--risk-low)', marginBottom: '0.4rem' }}>Strengths</div>
+                  {atsResult.strengths.map((s, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '6px', fontSize: '0.79rem', color: 'var(--ink-soft)', marginBottom: '0.3rem', alignItems: 'flex-start' }}>
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--risk-low)', flexShrink: 0, marginTop: '6px' }}/>
+                      {s}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {atsResult.improvement_areas?.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--risk-high)', marginBottom: '0.4rem' }}>Improvement areas</div>
+                  {atsResult.improvement_areas.map((s, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '6px', fontSize: '0.79rem', color: 'var(--ink-soft)', marginBottom: '0.3rem', alignItems: 'flex-start' }}>
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--risk-high)', flexShrink: 0, marginTop: '6px' }}/>
+                      {s}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Recommendations */}
+            {atsResult.recommendations?.length > 0 && (
+              <div style={{ padding: '0.85rem 1rem', background: 'rgba(var(--signal-rgb,30,80,180),0.05)', border: '1px solid var(--card-edge-strong)', borderRadius: '4px' }}>
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--signal)', marginBottom: '0.55rem' }}>Recommendations</div>
+                {atsResult.recommendations.map((r, i) => (
+                  <div key={i} style={{ display: 'flex', gap: '8px', fontSize: '0.8rem', color: 'var(--ink-soft)', marginBottom: '0.4rem', alignItems: 'flex-start' }}>
+                    <span className="mono" style={{ color: 'var(--signal)', fontWeight: 700, flexShrink: 0, fontSize: '0.72rem', marginTop: '2px' }}>{String(i + 1).padStart(2, '0')}</span>
+                    {r}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function MyProfile() {
   const { user } = useAuth();
@@ -1306,6 +1738,34 @@ export default function MyProfile() {
             richProfile={richProfile}
             initialVerif={verification}
             onVerifUpdate={updateVerification}
+          />
+        )}
+        {tab === 'resume' && (
+          <ResumeTab
+            data={{ ...personal, ...academic, ...employability }}
+            onChange={merged => {
+              setPersonal(p => ({ ...p,
+                full_name: merged.full_name ?? p?.full_name,
+                email: merged.email ?? p?.email,
+                mobile: merged.mobile ?? p?.mobile,
+                city: merged.city ?? p?.city,
+                state: merged.state ?? p?.state,
+                graduation_year: merged.graduation_year ?? p?.graduation_year,
+              }));
+              setAcademic(a => ({ ...a,
+                cgpa: merged.cgpa ?? a?.cgpa,
+                achievements: merged.achievements ?? a?.achievements,
+                coding_problems_solved: merged.coding_problems_solved ?? a?.coding_problems_solved,
+                hackathons_attended: merged.hackathons_attended ?? a?.hackathons_attended,
+              }));
+              setEmployability(e => ({ ...e,
+                skills: merged.skills ?? e?.skills,
+                internships: merged.internships ?? e?.internships,
+                certifications: merged.certifications ?? e?.certifications,
+                projects: merged.projects ?? e?.projects,
+              }));
+            }}
+            studentId={sid}
           />
         )}
       </div>
